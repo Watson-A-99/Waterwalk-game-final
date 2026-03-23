@@ -1057,9 +1057,9 @@ function updateSpawning() {
     else                obsInterval = 28;
   } else {
     if (dist < 1)      { dropInterval = 55; obsInterval = 65; }
-    else if (dist < 2) { dropInterval = 50; obsInterval = 48; }
+    else if (dist < 2) { dropInterval = 50; obsInterval = 43; }
     else if (dist < 4) { dropInterval = 45; obsInterval = 35; }
-    else               { dropInterval = 40; obsInterval = 28; }
+    else               { dropInterval = 40; obsInterval = 25; }
   }
 
   nextDropSpawn--;
