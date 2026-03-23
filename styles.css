@@ -323,9 +323,10 @@ body {
   align-items: center;
   justify-content: center;
   text-align: center;
-  width: 100%;
+  width: min(96%, 1400px);
   height: 100%;
-  padding: 6% 10%;
+  padding: clamp(18px, 4vmin, 52px) clamp(20px, 7vmin, 110px);
+  margin: 0 auto;
 }
 
 
@@ -570,8 +571,9 @@ body {
    ============================================================ */
 .fact-content {
   gap: 0;
-  max-width: 680px;
-  padding: 8% 12%;
+  width: min(88%, 1100px);
+  max-width: none;
+  padding: clamp(20px, 4.2vmin, 56px) clamp(22px, 6.5vw, 100px);
 }
 
 .fact-eyebrow {
@@ -603,7 +605,7 @@ body {
   color: rgba(30, 30, 30, 0.6);
   font-weight: 400;
   line-height: 1.6;
-  max-width: 520px;
+  max-width: min(78vw, 880px);
 }
 
 
@@ -1314,6 +1316,42 @@ body[data-theme="light"] .fullscreen-btn:hover {
   }
   .game-card::before { display: none; }
   .canvas-holder { aspect-ratio: 16 / 9; }
+
+  /* Keep slide/card content off the edges on mobile and reduce text scale. */
+  .overlay-content {
+    width: min(98%, 1400px);
+    padding: clamp(14px, 3.2vmin, 24px) clamp(18px, 7vw, 34px);
+  }
+
+  .fact-content {
+    width: min(70%, 890px);
+    padding: clamp(14px, 3.4vmin, 24px) clamp(18px, 7.5vw, 36px);
+  }
+
+  .fact-heading,
+  .cta-heading,
+  .score-title,
+  .tutorial-title,
+  .pause-title,
+  .death-title,
+  .arrival-title {
+    font-size: clamp(20px, 5.2vw, 30px);
+    margin-bottom: 14px;
+  }
+
+  .fact-body,
+  .cta-sub,
+  .tutorial-label,
+  .start-desc,
+  .pause-hint,
+  .death-subtitle,
+  .arrival-distance {
+    font-size: clamp(11px, 3.2vw, 15px);
+    line-height: 1.45;
+  }
+
+  .fact-body { max-width: min(86vw, 620px); }
+
   .info-strip {
     background: rgba(255, 255, 255, 0.03);
     border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -1357,6 +1395,29 @@ body[data-theme="light"] .fullscreen-btn:hover {
   .game-card::before { display: none; }
   .canvas-holder { height: 100dvh; aspect-ratio: auto; }
   #game { object-fit: contain; }
+
+  /* Keep educational cards comfortably away from screen edges on short landscape screens. */
+  .overlay-content {
+    width: min(98%, 1400px);
+    padding: clamp(10px, 2.5vmin, 22px) clamp(18px, 5vw, 48px);
+  }
+
+  .fact-content {
+    width: min(94%, 1200px);
+    padding: clamp(12px, 3vmin, 26px) clamp(20px, 6vw, 64px);
+  }
+
+  .fact-heading,
+  .cta-heading,
+  .score-title {
+    font-size: clamp(20px, 3.6vw, 34px);
+  }
+
+  .fact-body,
+  .cta-sub,
+  .tutorial-label {
+    font-size: clamp(12px, 1.8vw, 16px);
+  }
 }
 
 /* ============================================================
