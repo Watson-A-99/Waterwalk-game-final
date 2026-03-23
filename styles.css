@@ -1180,7 +1180,7 @@ body {
 
 .cta-link {
   font-size: 13px;
-  color: var(--cw-water-blue);
+  color: #105980;
   text-decoration: none;
   font-weight: 600;
   transition: color 0.2s;
@@ -1190,7 +1190,7 @@ body {
 }
 
 .cta-link:hover {
-  color: var(--cw-yellow);
+  color: var(--cw-water-blue);
 }
 
 .cta-link svg {
