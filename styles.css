@@ -1212,6 +1212,51 @@ body {
   color: var(--cw-yellow);
 }
 
+/* --- Dark Theme Contrast Boost (accessibility) --- */
+body:not([data-theme="light"]) .brand-text {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+body:not([data-theme="light"]) .top-links a {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+body:not([data-theme="light"]) .theme-toggle {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+body:not([data-theme="light"]) .start-tagline {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+body:not([data-theme="light"]) .start-key {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+body:not([data-theme="light"]) .start-mobile-hint {
+  color: rgba(255, 255, 255, 0.68);
+}
+
+body:not([data-theme="light"]) .pause-hint {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+body:not([data-theme="light"]) .tutorial-goal {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+body:not([data-theme="light"]) .info-desc,
+body:not([data-theme="light"]) .key-hint,
+body:not([data-theme="light"]) .credit,
+body:not([data-theme="light"]) .credit a,
+body:not([data-theme="light"]) .fullscreen-btn {
+  color: rgba(255, 255, 255, 0.74);
+}
+
+body:not([data-theme="light"]) .skip-btn.on-dark {
+  color: rgba(255, 255, 255, 0.7);
+}
+
 /* --- Light Theme --- */
 body[data-theme="light"] {
   --surface-dark: #faf7f0;
