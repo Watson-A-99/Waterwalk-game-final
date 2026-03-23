@@ -55,10 +55,13 @@
         <div class="brand-logo"><img src="charity-water-seeklogo.svg" alt="charity:water logo"></div>
         <div class="brand-text"><span>Water Walk</span> &middot; charity:water</div>
       </div>
-      <nav class="top-links">
-        <a href="https://www.charitywater.org" target="_blank" rel="noopener">About charity:water</a>
-        <a href="https://www.charitywater.org/donate" target="_blank" rel="noopener">Donate</a>
-      </nav>
+      <div class="top-actions">
+        <nav class="top-links">
+          <a href="https://www.charitywater.org" target="_blank" rel="noopener">About charity:water</a>
+          <a href="https://www.charitywater.org/donate" target="_blank" rel="noopener">Donate</a>
+        </nav>
+        <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false">Light Mode</button>
+      </div>
     </header>
 
     <!-- Game Area -->
@@ -217,7 +220,7 @@
           <!-- POST-CUTSCENE: HOPE -->
           <div class="game-overlay" id="overlayHope" data-advance="true">
             <div class="overlay-content fact-content">
-              <h2 class="fact-heading hope-heading">charity: water is changing that.</h2>
+              <h2 class="fact-heading hope-heading"> But charity: water is changing that.</h2>
               <p class="fact-body">Since 2006, they've brought clean water to over 17 million people across 29 countries. 100% of public donations fund water projects directly.</p>
             </div>
           </div>
@@ -253,6 +256,10 @@
                 <div class="score-row" id="scoreRowDrops" style="display:none;">
                   <span class="score-label">Drops Collected</span>
                   <span class="score-value" id="scoreDrops">0</span>
+                </div>
+                <div class="score-row" id="scoreRowBestDrops" style="display:none;">
+                  <span class="score-label">Best Drops</span>
+                  <span class="score-value" id="scoreBestDrops">0</span>
                 </div>
                 <div class="score-row">
                   <span class="score-label">Distance</span>
@@ -294,7 +301,7 @@
         <div class="info-strip">
           <div class="info-left">
             <span class="info-tag">Side-Scroller</span>
-            <span class="info-desc">Guide a jerry can 6 km to collect clean water</span>
+            <span class="info-desc">Guide Jerry 6 km to collect clean water</span>
           </div>
           <div class="info-controls">
             <span class="key-hint"><kbd>W</kbd> / <kbd>↑</kbd> Jump</span>

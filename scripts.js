@@ -33,6 +33,12 @@ var COLORS = {
   black:     "#000000"
 };
 
+var HUD_FONT_STACK = '"Inter", "DM Sans", "Segoe UI", sans-serif';
+var HUD_DISTANCE_COLOR = "#ffffff";
+var HUD_SCORE_BLUE = "#ffffff";
+var HUD_PILL_BLUE = "rgba(143, 220, 255, 0.56)";
+var HUD_PILL_YELLOW = "rgba(255, 224, 141, 0.29)";
+
 
 // ============================================================
 // [GAME CONSTANTS]
@@ -53,10 +59,10 @@ var WIN_WATER      = 80;
 var DAMAGE_ZONE_1  = 8;
 var DAMAGE_ZONE_2  = 14;
 var DAMAGE_ZONE_3  = 20;
-var TOTAL_TIME     = 1;
+var TOTAL_TIME     = 90;  // seconds to reach 6km
 var TOTAL_DISTANCE = 6;
 var BASE_SPEED     = 10;
-var MAX_SPEED      = 17.5;
+var MAX_SPEED      = 20;
 var INVULN_FRAMES  = 45;
 var DROP_W         = 22;
 var DROP_H         = 30;   // adjusted for SVG aspect ratio (13:18)
@@ -180,6 +186,46 @@ function resetSaveData() {
 }
 
 loadState();
+
+
+// ============================================================
+// [THEME TOGGLE]
+// ============================================================
+function applyTheme(theme) {
+  var resolved = theme === "light" ? "light" : "dark";
+  document.body.setAttribute("data-theme", resolved);
+
+  var btn = document.getElementById("themeToggle");
+  if (btn) {
+    var isLight = resolved === "light";
+    btn.textContent = isLight ? "Dark Mode" : "Light Mode";
+    btn.setAttribute("aria-pressed", isLight ? "true" : "false");
+  }
+
+  try {
+    localStorage.setItem("ww_theme", resolved);
+  } catch(e) {}
+}
+
+function initThemeToggle() {
+  var savedTheme = "dark";
+  try {
+    var fromStorage = localStorage.getItem("ww_theme");
+    if (fromStorage === "light" || fromStorage === "dark") savedTheme = fromStorage;
+  } catch(e) {}
+
+  applyTheme(savedTheme);
+
+  var btn = document.getElementById("themeToggle");
+  if (!btn) return;
+
+  btn.addEventListener("click", function() {
+    var current = document.body.getAttribute("data-theme") === "light" ? "light" : "dark";
+    applyTheme(current === "light" ? "dark" : "light");
+  });
+}
+
+initThemeToggle();
 
 
 // ============================================================
@@ -415,11 +461,25 @@ function tryJump() {
 function tryDuck() {
   if (!paused && player.onGround && !player.ducking) {
     player.ducking = true;
-    // Dampened scaling: duck stays generous early, shortens gently at high speed
-    var rawRatio = scrollSpeed / BASE_SPEED;
-    var speedRatio = 1 + (rawRatio - 1) * 0.55;
-    player.duckTimer = Math.max(18, Math.round(DUCK_DURATION / speedRatio));
+    var duckScale = getDuckScale(scrollSpeed);
+    player.duckTimer = Math.max(10, Math.round(DUCK_DURATION / duckScale));
   }
+}
+
+function getSpeedExcess(speed) {
+  return Math.max(0, speed / BASE_SPEED - 1);
+}
+
+function getGravityScale(speed) {
+  // Gentler midgame, steeper late-game/infinite ramp.
+  var ex = getSpeedExcess(speed);
+  return 1 + ex * 0.55 + ex * ex * 0.24;
+}
+
+function getDuckScale(speed) {
+  // Keep ducks usable in midgame, but shorten quickly at extreme speeds.
+  var ex = getSpeedExcess(speed);
+  return 1 + ex * 0.48 + ex * ex * 0.42;
 }
 
 
@@ -912,7 +972,7 @@ function drawRock(obs) {
   ctx.lineTo(obs.x, obs.y);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = "#8a6d4a";
+  ctx.strokeStyle = "#32271a";
   ctx.lineWidth = 2;
   ctx.stroke();
 }
@@ -925,7 +985,7 @@ function drawCluster(obs) {
   ctx.lineTo(obs.x, obs.y);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = "#8a6d4a";
+  ctx.strokeStyle = "#32271a";
   ctx.lineWidth = 2;
   ctx.stroke();
 
@@ -968,7 +1028,7 @@ function drawWind(obs) {
       ctx.lineTo(obs.x + px + shift, yy + wave);
     }
 
-    ctx.strokeStyle = "rgba(60, 60, 70, 0.5)";
+    ctx.strokeStyle = "rgba(47, 47, 58, 0.73)";
     ctx.lineWidth = 5;
     ctx.stroke();
 
@@ -1050,16 +1110,16 @@ function updateSpawning() {
   var dropInterval, obsInterval;
   if (infiniteMode) {
     // Infinite: drops stay consistent, obstacles tighten with distance
-    dropInterval = 45;
-    if (dist < 0.5)     obsInterval = 70;
-    else if (dist < 1)  obsInterval = 50;
-    else if (dist < 3)  obsInterval = 38;
-    else                obsInterval = 28;
+    dropInterval = 38;
+    if (dist < 0.5)     obsInterval = 48;
+    else if (dist < 1)  obsInterval = 36;
+    else if (dist < 3)  obsInterval = 26;
+    else                obsInterval = 18;
   } else {
-    if (dist < 1)      { dropInterval = 55; obsInterval = 65; }
-    else if (dist < 2) { dropInterval = 50; obsInterval = 43; }
-    else if (dist < 4) { dropInterval = 45; obsInterval = 35; }
-    else               { dropInterval = 40; obsInterval = 25; }
+    if (dist < 1)      { dropInterval = 46; obsInterval = 50; }
+    else if (dist < 2) { dropInterval = 41; obsInterval = 32; }
+    else if (dist < 4) { dropInterval = 37; obsInterval = 24; }
+    else               { dropInterval = 34; obsInterval = 20; }
   }
 
   nextDropSpawn--;
@@ -1072,8 +1132,8 @@ function updateSpawning() {
 
   if (nextObstacleSpawn <= 0 && frameCount > 180 && !pastObstacleCutoff) {
     spawnObstacle();
-    var minFrameGap = Math.max(obsInterval, Math.ceil(400 / scrollSpeed));
-    nextObstacleSpawn = minFrameGap + Math.floor(Math.random() * 12);
+    var minFrameGap = Math.max(obsInterval, Math.ceil(290 / scrollSpeed));
+    nextObstacleSpawn = minFrameGap + Math.floor(Math.random() * 10);
 
     if (Math.random() < 0.35) {
       var lastObs = obstacles[obstacles.length - 1];
@@ -1164,6 +1224,12 @@ function drawRoundedRect(x, y, w, h, r) {
   ctx.closePath();
 }
 
+function drawCounterPill(x, y, w, h, fillColor) {
+  ctx.fillStyle = fillColor || "rgba(255,255,255,0.32)";
+  drawRoundedRect(x, y, w, h, 10);
+  ctx.fill();
+}
+
 function drawHUD() {
   if (infiniteMode) {
     drawHUD_Infinite();
@@ -1191,45 +1257,59 @@ function drawHUD_Story() {
     ctx.fill();
   }
 
-  // Meter background
-  ctx.fillStyle = "rgba(255,255,255,0.25)";
-  ctx.fillRect(meterX, meterY, meterW, meterH);
+  // Meter background (matches score-page meter styling)
+  ctx.fillStyle = "rgba(0,0,0,0.08)";
+  drawRoundedRect(meterX, meterY, meterW, meterH, meterH / 2);
+  ctx.fill();
 
   // Meter fill
   var fill = Math.min(water / MAX_WATER, 1);
-  ctx.fillStyle = COLORS.waterBlue;
-  ctx.fillRect(meterX, meterY, meterW * fill, meterH);
+  if (fill > 0) {
+    var meterGrad = ctx.createLinearGradient(meterX, meterY, meterX + meterW, meterY);
+    meterGrad.addColorStop(0, "#3a9ad9");
+    meterGrad.addColorStop(1, "#4db8e8");
+    ctx.fillStyle = meterGrad;
+    drawRoundedRect(meterX, meterY, meterW * fill, meterH, meterH / 2);
+    ctx.fill();
+  }
 
   // Meter border
-  ctx.strokeStyle = "rgba(255,255,255,0.5)";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(meterX, meterY, meterW, meterH);
+  ctx.strokeStyle = "rgba(0,0,0,0.08)";
+  ctx.lineWidth = 1;
+  drawRoundedRect(meterX, meterY, meterW, meterH, meterH / 2);
+  ctx.stroke();
 
   // Water number
+  var waterText = Math.floor(water) + " / " + MAX_WATER;
+  ctx.font = "700 14px " + HUD_FONT_STACK;
   ctx.fillStyle = COLORS.white;
-  ctx.font = "bold 14px monospace";
+  ctx.font = "700 14px " + HUD_FONT_STACK;
   ctx.textAlign = "left";
-  ctx.fillText(Math.floor(water) + " / " + MAX_WATER, meterX + 4, meterY + 16);
+  ctx.fillText(waterText, meterX + 10, meterY + 16);
 
   // Score
-  ctx.fillStyle = COLORS.yellow;
-  ctx.font = "bold 16px monospace";
+  var scoreText = "SCORE: " + Math.floor(water);
+  ctx.font = "700 16px " + HUD_FONT_STACK;
+  var scoreTextW = ctx.measureText(scoreText).width;
+  drawCounterPill(18, meterY + meterH + 8, scoreTextW + 20, 24, HUD_PILL_BLUE);
+  ctx.fillStyle = HUD_SCORE_BLUE;
+  ctx.font = "700 16px " + HUD_FONT_STACK;
   ctx.textAlign = "left";
-  ctx.fillText("SCORE: " + Math.floor(water), 28, meterY + meterH + 22);
+  ctx.fillText(scoreText, 28, meterY + meterH + 26);
 
   // Distance — with background pill
-  ctx.font = "bold 20px monospace";
+  ctx.font = "700 20px " + HUD_FONT_STACK;
   var distText = "DISTANCE: " + distance.toFixed(2) + " km / " + TOTAL_DISTANCE + " km";
   var distTextW = ctx.measureText(distText).width;
   var distPillX = W - 70 - distTextW - 10;
   var distPillY = 24;
-  ctx.fillStyle = "rgba(0,0,0,0.3)";
-  drawRoundedRect(distPillX, distPillY, distTextW + 20, 28, 6);
-  ctx.fill();
+  drawCounterPill(distPillX, distPillY, distTextW + 20, 28, HUD_PILL_YELLOW);
 
-  ctx.fillStyle = COLORS.yellow;
+  ctx.fillStyle = HUD_DISTANCE_COLOR;
   ctx.textAlign = "right";
-  ctx.fillText(distText, W - 70, 42);
+  ctx.textBaseline = "middle";
+  ctx.fillText(distText, W - 70, distPillY + 14);
+  ctx.textBaseline = "alphabetic";
 }
 
 function drawHUD_Infinite() {
@@ -1237,11 +1317,9 @@ function drawHUD_Infinite() {
 
   // Drop counter — background pill
   var dropText = "" + totalDropsCollected;
-  ctx.font = "bold 18px monospace";
+  ctx.font = "700 18px " + HUD_FONT_STACK;
   var dropTextW = ctx.measureText(dropText).width;
-  ctx.fillStyle = "rgba(0,0,0,0.3)";
-  drawRoundedRect(12, iconY - 7, 28 + dropTextW + 14, 32, 6);
-  ctx.fill();
+  drawCounterPill(12, iconY - 7, 28 + dropTextW + 14, 32, HUD_PILL_BLUE);
 
   // Water drop SVG icon
   if (dropSvgImage._loaded) {
@@ -1249,30 +1327,31 @@ function drawHUD_Infinite() {
   }
 
   // Drops collected count
-  ctx.fillStyle = COLORS.waterBlue;
-  ctx.font = "bold 18px monospace";
+  ctx.fillStyle = HUD_SCORE_BLUE;
+  ctx.font = "700 18px " + HUD_FONT_STACK;
   ctx.textAlign = "left";
   ctx.fillText(dropText, 42, iconY + 16);
 
   // Distance — with background pill
-  ctx.font = "bold 20px monospace";
+  ctx.font = "700 20px " + HUD_FONT_STACK;
   var distText = "DISTANCE: " + infiniteDistance.toFixed(2) + " km";
   var distTextW = ctx.measureText(distText).width;
   var distPillX = W - 70 - distTextW - 10;
   var distPillY = 24;
-  ctx.fillStyle = "rgba(0,0,0,0.3)";
-  drawRoundedRect(distPillX, distPillY, distTextW + 20, 28, 6);
-  ctx.fill();
+  drawCounterPill(distPillX, distPillY, distTextW + 20, 28, HUD_PILL_YELLOW);
 
-  ctx.fillStyle = COLORS.yellow;
+  ctx.fillStyle = HUD_DISTANCE_COLOR;
   ctx.textAlign = "right";
-  ctx.fillText(distText, W - 70, 42);
+  ctx.textBaseline = "middle";
+  ctx.fillText(distText, W - 70, distPillY + 14);
+  ctx.textBaseline = "alphabetic";
 }
 
 function drawPauseButton() {
   var x = PAUSE_BTN_X, y = PAUSE_BTN_Y, s = PAUSE_BTN_SIZE;
-  ctx.fillStyle = "rgba(255,255,255,0.15)";
-  ctx.fillRect(x, y, s, s);
+  ctx.strokeStyle = "rgba(0,0,0,0.85)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, s, s);
   ctx.fillStyle = COLORS.white;
   var barW = 6, barH = 20, barY = y + (s - barH) / 2;
   ctx.fillRect(x + s/2 - barW - 3, barY, barW, barH);
@@ -1293,7 +1372,7 @@ function drawCountdown() {
   drawBackground(0);
 
   ctx.fillStyle = COLORS.yellow;
-  ctx.font = "bold 120px sans-serif";
+  ctx.font = "700 120px " + HUD_FONT_STACK;
   ctx.textAlign = "center";
   ctx.fillText(countdownNum, W/2, H/2 + 30);
 }
@@ -1325,7 +1404,9 @@ function showInfiniteScore() {
   document.getElementById("scoreRowWater").style.display = "none";
   document.getElementById("scoreRowMeter").style.display = "none";
   document.getElementById("scoreRowDrops").style.display = "flex";
-  document.getElementById("scoreDrops").textContent = totalDropsCollected + (totalDropsCollected > infiniteBestDrops - totalDropsCollected ? "" : "");
+  document.getElementById("scoreRowBestDrops").style.display = "flex";
+  document.getElementById("scoreDrops").textContent = totalDropsCollected;
+  document.getElementById("scoreBestDrops").textContent = infiniteBestDrops;
   document.getElementById("scoreDistance").textContent = infiniteDistance.toFixed(2) + " km";
   document.getElementById("scoreRowHighScore").style.display = "flex";
   document.getElementById("scoreBestDist").textContent = infiniteHighScore.toFixed(2) + " km";
@@ -1373,7 +1454,7 @@ function showScreen_Arrival() {
   }, 700);
 
   // Auto-advance after 4.5 seconds
-  endScreenTimeout = setTimeout(function() { showScreen_Fact1(); }, 4500);
+  endScreenTimeout = setTimeout(function() { showScreen_Fact1(); }, 6000);
   currentAdvanceFn = showScreen_Fact1;
 }
 
@@ -1424,7 +1505,7 @@ function showScreen_Fact2() {
   showOverlay("overlayFact2");
   showSkipButton(false);
 
-  endScreenTimeout = setTimeout(function() { showScreen_Hope(); }, 7000);
+  endScreenTimeout = setTimeout(function() { showScreen_Hope(); }, 9000);
   currentAdvanceFn = showScreen_Hope;
 }
 
@@ -1433,7 +1514,7 @@ function showScreen_Hope() {
   showOverlay("overlayHope");
   showSkipButton(false);
 
-  endScreenTimeout = setTimeout(function() { showScreen_CTA(); }, 6500);
+  endScreenTimeout = setTimeout(function() { showScreen_CTA(); }, 8000);
   currentAdvanceFn = showScreen_Hope; // clicking on hope advances to CTA
   currentAdvanceFn = showScreen_CTA;
 }
@@ -1461,6 +1542,7 @@ function transitionToScore() {
   document.getElementById("scoreRowWater").style.display = "flex";
   document.getElementById("scoreRowMeter").style.display = "flex";
   document.getElementById("scoreRowDrops").style.display = "none";
+  document.getElementById("scoreRowBestDrops").style.display = "none";
   document.getElementById("scoreRowHighScore").style.display = "none";
 
   document.getElementById("scoreWater").textContent = totalDropsCollected + " drops";
@@ -1608,22 +1690,24 @@ function update() {
   // Speed & distance
   if (!infiniteMode) {
     var progress = Math.min(elapsed / TOTAL_TIME, 1);
-    scrollSpeed = BASE_SPEED + (MAX_SPEED - BASE_SPEED) * progress;
+    scrollSpeed = BASE_SPEED + (MAX_SPEED - BASE_SPEED) * Math.pow(progress, 0.8);
+
+    // Nudge only the middle stretch to feel a bit tougher without changing start/end feel.
+    if (progress >= 0.35 && progress <= 0.75) {
+      scrollSpeed *= 1.04;
+    }
+
     elapsed += 1 / 60;
     distance = progress * TOTAL_DISTANCE;
   } else {
     // Infinite: speed ramps up continuously, accelerating
-    scrollSpeed = BASE_SPEED + elapsed * 0.1 + elapsed * elapsed * 0.002;
+    scrollSpeed = BASE_SPEED + elapsed * 0.16 + elapsed * elapsed * 0.0035;
     elapsed += 1 / 60;
     infiniteDistance += scrollSpeed / 3600;  // pixels to km approximation
   }
 
   // Player physics
-  // Dampened speed ratio: at base speed = 1.0, at max speed (~2x) ≈ 1.5
-  // This prevents floatiness at high speed without making early game too snappy
-  var rawRatio = scrollSpeed / BASE_SPEED;
-  var speedRatio = 1 + (rawRatio - 1) * 0.55;
-  var effectiveGravity = GRAVITY * speedRatio;
+  var effectiveGravity = GRAVITY * getGravityScale(scrollSpeed);
 
   if (!player.onGround) {
     player.vy += effectiveGravity;
