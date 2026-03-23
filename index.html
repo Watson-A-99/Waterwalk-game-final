@@ -8,7 +8,7 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=Lora:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Stylesheet -->
   <link rel="stylesheet" href="styles.css">
@@ -20,14 +20,12 @@
     <div class="orientation-content">
       <div class="orientation-icon-wrapper">
         <div class="phone-icon">
-          <!-- Lucide "smartphone" icon (inline SVG) -->
           <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <rect width="14" height="20" x="5" y="2" rx="2" ry="2"/>
             <path d="M12 18h.01"/>
           </svg>
         </div>
         <div class="rotate-arrow">
-          <!-- Lucide "rotate-cw" icon (inline SVG) -->
           <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
             <path d="M21 3v5h-5"/>
@@ -37,7 +35,6 @@
       <h2 class="orientation-title">Rotate Your Device</h2>
       <p class="orientation-desc">Water Walk plays best in landscape mode.<br>Please rotate your phone to continue.</p>
       <button class="orientation-dismiss" id="orientationDismiss">
-        <!-- Lucide "x" icon (inline SVG) -->
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
         </svg>
@@ -70,7 +67,229 @@
 
         <div class="canvas-holder" id="canvasHolder">
           <canvas id="game"></canvas>
-        </div>
+
+          <!-- ==================== OVERLAY SCREENS ==================== -->
+
+          <!-- START SCREEN -->
+          <div class="game-overlay active" id="overlayStart">
+            <div class="overlay-scrim overlay-scrim--dark"></div>
+            <div class="overlay-content start-content">
+              <h1 class="start-title">Water Walk</h1>
+              <p class="start-tagline">A charity:water awareness game</p>
+              <p class="start-desc">Guide Jerry 6 km to collect clean water.</p>
+              <div class="start-controls">
+                <span class="start-key"><kbd>W</kbd> / <kbd>↑</kbd> / <kbd>Space</kbd> Jump</span>
+                <span class="start-key"><kbd>S</kbd> / <kbd>↓</kbd> Duck</span>
+                <span class="start-key"><kbd>P</kbd> Pause</span>
+              </div>
+              <button class="btn btn--primary btn--large" id="btnStart">Start Game</button>
+              <p class="start-mobile-hint">Mobile: Swipe Up = Jump · Swipe Down = Duck</p>
+            </div>
+          </div>
+
+          <!-- PAUSE OVERLAY -->
+          <div class="game-overlay" id="overlayPause">
+            <div class="overlay-scrim overlay-scrim--dark"></div>
+            <div class="overlay-content pause-content">
+              <h1 class="pause-title">Paused</h1>
+              <p class="pause-hint">Press P, Escape, or tap below to resume</p>
+              <button class="btn btn--primary btn--large" id="btnResume">Resume</button>
+            </div>
+          </div>
+
+          <!-- DEATH SCREEN (story mode only) -->
+          <div class="game-overlay" id="overlayDeath">
+            <div class="overlay-scrim overlay-scrim--dark"></div>
+            <div class="overlay-content death-content">
+              <h1 class="death-title">Oh no!</h1>
+              <p class="death-subtitle">You lost all your water!</p>
+              <img class="death-icon" src="Jerry Sprites/charity-water-1_LOSE.svg" alt="" draggable="false">
+              <button class="btn btn--primary btn--large" id="btnTryAgain">Try Again!</button>
+            </div>
+          </div>
+
+          <!-- TUTORIAL: STORY MODE -->
+          <div class="game-overlay" id="overlayTutorial">
+            <div class="overlay-scrim overlay-scrim--dark"></div>
+            <div class="overlay-content tutorial-content">
+              <h2 class="tutorial-title">How to Play</h2>
+              <div class="tutorial-rows">
+                <div class="tutorial-row">
+                  <div class="tutorial-scene">
+                    <!-- Jerry jumping over rocks -->
+                    <div class="tutorial-scene-layer">
+                      <img src="Jerry Sprites/charity-water-1_WALK-PASSING.svg" class="tutorial-sprite tutorial-sprite--jump" alt="">
+                      <svg class="tutorial-obstacle tutorial-obstacle--rocks" viewBox="0 0 80 32" fill="none">
+                        <polygon points="14,28 28,4 42,28" fill="#b8956a" stroke="#8a6d4a" stroke-width="1.5"/>
+                        <polygon points="34,28 52,0 70,28" fill="#a3845e" stroke="#8a6d4a" stroke-width="1.5"/>
+                        <polygon points="56,28 68,8 80,28" fill="#b8956a" stroke="#8a6d4a" stroke-width="1.5"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <p class="tutorial-label"><kbd>W</kbd> / <kbd>↑</kbd> / <kbd>Space</kbd> to Jump over rocks</p>
+                </div>
+                <div class="tutorial-row">
+                  <div class="tutorial-scene">
+                    <!-- Jerry ducking under wind -->
+                    <div class="tutorial-scene-layer">
+                      <svg class="tutorial-obstacle tutorial-obstacle--wind" viewBox="0 0 80 36" fill="none">
+                        <line x1="4" y1="6"  x2="76" y2="6"  stroke="rgba(225,225,240,0.7)" stroke-width="2.5" stroke-linecap="round"/>
+                        <line x1="8" y1="14" x2="72" y2="14" stroke="rgba(225,225,240,0.7)" stroke-width="2.5" stroke-linecap="round"/>
+                        <line x1="2" y1="22" x2="78" y2="22" stroke="rgba(225,225,240,0.7)" stroke-width="2.5" stroke-linecap="round"/>
+                        <line x1="6" y1="30" x2="74" y2="30" stroke="rgba(225,225,240,0.5)" stroke-width="2" stroke-linecap="round"/>
+                      </svg>
+                      <img src="Jerry Sprites/charity-water-1_DUCK NORMAL.svg" class="tutorial-sprite tutorial-sprite--duck" alt="">
+                    </div>
+                  </div>
+                  <p class="tutorial-label"><kbd>S</kbd> / <kbd>↓</kbd> to Duck under wind</p>
+                </div>
+                <div class="tutorial-row">
+                  <div class="tutorial-icons tutorial-icons--drops">
+                    <img class="tutorial-drop-icon" src="data:image/svg+xml,%3csvg%20fill='none'%20height='18'%20viewBox='0%200%2013%2018'%20width='13'%20xmlns='http://www.w3.org/2000/svg'%20xmlns:xlink='http://www.w3.org/1999/xlink'%3e%3cclipPath%20id='a'%3e%3cpath%20d='m.043457.549805h12.62v16.9h-12.62z'/%3e%3c/clipPath%3e%3cg%20clip-path='url(%23a)'%3e%3cpath%20d='m6.70353%2016.94c-3.2.24-6.01-2.17-6.25-5.37-.24-3.19996%204.56-9.58996%204.76-9.86996l.31-.41.36.36c.24.24%205.94997%205.94%206.18997%209.03996.24%203.1-2.16997%206-5.36997%206.25z'%20fill='%23fff'/%3e%3cpath%20d='m5.91349%2016.8199c-2.79.21-5.229999-1.89-5.439999-4.68-.21-2.68996%203.959999-8.34996%204.139999-8.58996l.27-.36.32.31c.21.21%205.19001%205.18%205.39001%207.86996.21%202.79-1.89001%205.23-4.68001%205.44z'%20fill='%235493d3'/%3e%3cpath%20d='m6.79366%2016.9296c-3.2.24-5.999997-2.16-6.239997-5.36-.24-3.09003%204.539997-9.57003%204.749997-9.85003l.3-.41.36.36c.24.24%205.94004%205.93%206.18004%209.02003.24%203.09-2.16004%205.99-5.36004%206.24z'%20stroke='%231a1a1a'%20stroke-linecap='round'%20stroke-miterlimit='10'/%3e%3c/g%3e%3c/svg%3e" alt="">
+                    <img class="tutorial-drop-icon" src="data:image/svg+xml,%3csvg%20fill='none'%20height='18'%20viewBox='0%200%2013%2018'%20width='13'%20xmlns='http://www.w3.org/2000/svg'%20xmlns:xlink='http://www.w3.org/1999/xlink'%3e%3cclipPath%20id='a'%3e%3cpath%20d='m.043457.549805h12.62v16.9h-12.62z'/%3e%3c/clipPath%3e%3cg%20clip-path='url(%23a)'%3e%3cpath%20d='m6.70353%2016.94c-3.2.24-6.01-2.17-6.25-5.37-.24-3.19996%204.56-9.58996%204.76-9.86996l.31-.41.36.36c.24.24%205.94997%205.94%206.18997%209.03996.24%203.1-2.16997%206-5.36997%206.25z'%20fill='%23fff'/%3e%3cpath%20d='m5.91349%2016.8199c-2.79.21-5.229999-1.89-5.439999-4.68-.21-2.68996%203.959999-8.34996%204.139999-8.58996l.27-.36.32.31c.21.21%205.19001%205.18%205.39001%207.86996.21%202.79-1.89001%205.23-4.68001%205.44z'%20fill='%235493d3'/%3e%3cpath%20d='m6.79366%2016.9296c-3.2.24-5.999997-2.16-6.239997-5.36-.24-3.09003%204.539997-9.57003%204.749997-9.85003l.3-.41.36.36c.24.24%205.94004%205.93%206.18004%209.02003.24%203.09-2.16004%205.99-5.36004%206.24z'%20stroke='%231a1a1a'%20stroke-linecap='round'%20stroke-miterlimit='10'/%3e%3c/g%3e%3c/svg%3e" alt="">
+                    <img class="tutorial-drop-icon" src="data:image/svg+xml,%3csvg%20fill='none'%20height='18'%20viewBox='0%200%2013%2018'%20width='13'%20xmlns='http://www.w3.org/2000/svg'%20xmlns:xlink='http://www.w3.org/1999/xlink'%3e%3cclipPath%20id='a'%3e%3cpath%20d='m.043457.549805h12.62v16.9h-12.62z'/%3e%3c/clipPath%3e%3cg%20clip-path='url(%23a)'%3e%3cpath%20d='m6.70353%2016.94c-3.2.24-6.01-2.17-6.25-5.37-.24-3.19996%204.56-9.58996%204.76-9.86996l.31-.41.36.36c.24.24%205.94997%205.94%206.18997%209.03996.24%203.1-2.16997%206-5.36997%206.25z'%20fill='%23fff'/%3e%3cpath%20d='m5.91349%2016.8199c-2.79.21-5.229999-1.89-5.439999-4.68-.21-2.68996%203.959999-8.34996%204.139999-8.58996l.27-.36.32.31c.21.21%205.19001%205.18%205.39001%207.86996.21%202.79-1.89001%205.23-4.68001%205.44z'%20fill='%235493d3'/%3e%3cpath%20d='m6.79366%2016.9296c-3.2.24-5.999997-2.16-6.239997-5.36-.24-3.09003%204.539997-9.57003%204.749997-9.85003l.3-.41.36.36c.24.24%205.94004%205.93%206.18004%209.02003.24%203.09-2.16004%205.99-5.36004%206.24z'%20stroke='%231a1a1a'%20stroke-linecap='round'%20stroke-miterlimit='10'/%3e%3c/g%3e%3c/svg%3e" alt="">
+                  </div>
+                  <p class="tutorial-label">Collect water drops to fill your meter</p>
+                </div>
+              </div>
+              <p class="tutorial-goal">Reach 6 km with enough water to complete your mission!</p>
+              <button class="btn btn--primary btn--large" id="btnTutorialGo">Let's Go!</button>
+            </div>
+          </div>
+
+          <!-- TUTORIAL: INFINITE MODE -->
+          <div class="game-overlay" id="overlayInfTutorial">
+            <div class="overlay-scrim overlay-scrim--dark"></div>
+            <div class="overlay-content tutorial-content">
+              <h2 class="tutorial-title">Infinite Mode</h2>
+              <div class="tutorial-rules">
+                <div class="tutorial-rule">
+                  <img src="Jerry Sprites/charity-water-1_WALK-OBSTACLE-HIT.svg" class="tutorial-sprite tutorial-sprite--hit" alt="">
+                  <p>One hit and you're out!</p>
+                </div>
+                <div class="tutorial-rule">
+                  <div class="tutorial-icons tutorial-icons--drops">
+                    <img class="tutorial-drop-icon" src="data:image/svg+xml,%3csvg%20fill='none'%20height='18'%20viewBox='0%200%2013%2018'%20width='13'%20xmlns='http://www.w3.org/2000/svg'%20xmlns:xlink='http://www.w3.org/1999/xlink'%3e%3cclipPath%20id='a'%3e%3cpath%20d='m.043457.549805h12.62v16.9h-12.62z'/%3e%3c/clipPath%3e%3cg%20clip-path='url(%23a)'%3e%3cpath%20d='m6.70353%2016.94c-3.2.24-6.01-2.17-6.25-5.37-.24-3.19996%204.56-9.58996%204.76-9.86996l.31-.41.36.36c.24.24%205.94997%205.94%206.18997%209.03996.24%203.1-2.16997%206-5.36997%206.25z'%20fill='%23fff'/%3e%3cpath%20d='m5.91349%2016.8199c-2.79.21-5.229999-1.89-5.439999-4.68-.21-2.68996%203.959999-8.34996%204.139999-8.58996l.27-.36.32.31c.21.21%205.19001%205.18%205.39001%207.86996.21%202.79-1.89001%205.23-4.68001%205.44z'%20fill='%235493d3'/%3e%3cpath%20d='m6.79366%2016.9296c-3.2.24-5.999997-2.16-6.239997-5.36-.24-3.09003%204.539997-9.57003%204.749997-9.85003l.3-.41.36.36c.24.24%205.94004%205.93%206.18004%209.02003.24%203.09-2.16004%205.99-5.36004%206.24z'%20stroke='%231a1a1a'%20stroke-linecap='round'%20stroke-miterlimit='10'/%3e%3c/g%3e%3c/svg%3e" alt="">
+                    <img class="tutorial-drop-icon" src="data:image/svg+xml,%3csvg%20fill='none'%20height='18'%20viewBox='0%200%2013%2018'%20width='13'%20xmlns='http://www.w3.org/2000/svg'%20xmlns:xlink='http://www.w3.org/1999/xlink'%3e%3cclipPath%20id='a'%3e%3cpath%20d='m.043457.549805h12.62v16.9h-12.62z'/%3e%3c/clipPath%3e%3cg%20clip-path='url(%23a)'%3e%3cpath%20d='m6.70353%2016.94c-3.2.24-6.01-2.17-6.25-5.37-.24-3.19996%204.56-9.58996%204.76-9.86996l.31-.41.36.36c.24.24%205.94997%205.94%206.18997%209.03996.24%203.1-2.16997%206-5.36997%206.25z'%20fill='%23fff'/%3e%3cpath%20d='m5.91349%2016.8199c-2.79.21-5.229999-1.89-5.439999-4.68-.21-2.68996%203.959999-8.34996%204.139999-8.58996l.27-.36.32.31c.21.21%205.19001%205.18%205.39001%207.86996.21%202.79-1.89001%205.23-4.68001%205.44z'%20fill='%235493d3'/%3e%3cpath%20d='m6.79366%2016.9296c-3.2.24-5.999997-2.16-6.239997-5.36-.24-3.09003%204.539997-9.57003%204.749997-9.85003l.3-.41.36.36c.24.24%205.94004%205.93%206.18004%209.02003.24%203.09-2.16004%205.99-5.36004%206.24z'%20stroke='%231a1a1a'%20stroke-linecap='round'%20stroke-miterlimit='10'/%3e%3c/g%3e%3c/svg%3e" alt="">
+                  </div>
+                  <p>Collect drops for score</p>
+                </div>
+                <div class="tutorial-rule">
+                  <span class="tutorial-speed-icon">⚡</span>
+                  <p>Speed increases forever</p>
+                </div>
+              </div>
+              <p class="tutorial-goal">How far can you go?</p>
+              <button class="btn btn--primary btn--large" id="btnInfTutorialGo">Go!</button>
+            </div>
+          </div>
+
+          <!-- POST-CUTSCENE: ARRIVAL -->
+          <div class="game-overlay" id="overlayArrival" data-advance="true">
+            <div class="overlay-content arrival-content">
+              <h1 class="arrival-title">You made it.</h1>
+              <p class="arrival-distance">6 km</p>
+              <div class="arrival-meter-wrap">
+                <div class="arrival-meter">
+                  <div class="arrival-meter-fill" id="meterFill"></div>
+                </div>
+                <p class="arrival-meter-label" id="meterLabel"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- POST-CUTSCENE: FACT 1 -->
+          <div class="game-overlay" id="overlayFact1" data-advance="true">
+            <div class="overlay-content fact-content">
+              <span class="fact-eyebrow">Did you know?</span>
+              <h2 class="fact-heading">703 million people lack access to clean water.</h2>
+            </div>
+          </div>
+
+          <!-- POST-CUTSCENE: FACT 2 -->
+          <div class="game-overlay" id="overlayFact2" data-advance="true">
+            <div class="overlay-content fact-content">
+              <h2 class="fact-heading">Women and girls walk 6 km every day to collect water.</h2>
+              <p class="fact-body">A combined 250 million hours, every single day&thinsp;—&thinsp;time taken from school, work, and family.</p>
+            </div>
+          </div>
+
+          <!-- POST-CUTSCENE: HOPE -->
+          <div class="game-overlay" id="overlayHope" data-advance="true">
+            <div class="overlay-content fact-content">
+              <h2 class="fact-heading hope-heading">charity: water is changing that.</h2>
+              <p class="fact-body">Since 2006, they've brought clean water to over 17 million people across 29 countries. 100% of public donations fund water projects directly.</p>
+            </div>
+          </div>
+
+          <!-- POST-CUTSCENE: CTA -->
+          <div class="game-overlay" id="overlayCTA">
+            <div class="overlay-content cta-content">
+              <h2 class="cta-heading">Every drop starts with someone like you!</h2>
+              <p class="cta-sub">Clean water changes everything. Join charity: water in bringing clean water to every person on the planet.</p>
+              <a href="https://www.charitywater.org/take-action" target="_blank" rel="noopener" class="btn btn--cta" id="btnCTA">Take Action</a>
+              <button class="btn btn--continue" id="btnContinue">Continue to Score →</button>
+            </div>
+          </div>
+
+          <!-- SCORE SCREEN (adapts for story vs infinite) -->
+          <div class="game-overlay" id="overlayScore">
+            <div class="overlay-scrim overlay-scrim--warm"></div>
+            <div class="overlay-content score-content">
+              <h1 class="score-title" id="scoreTitle">Thank you for playing!</h1>
+
+              <div class="score-card">
+                <div class="score-row" id="scoreRowWater">
+                  <span class="score-label">Water Collected</span>
+                  <span class="score-value" id="scoreWater">0 / 100</span>
+                </div>
+                <div class="score-row" id="scoreRowMeter">
+                  <span class="score-label">Water Meter</span>
+                  <div class="score-meter">
+                    <div class="score-meter-fill" id="scoreMeterFill"></div>
+                  </div>
+                  <span class="score-value score-value--pct" id="scorePct">0%</span>
+                </div>
+                <div class="score-row" id="scoreRowDrops" style="display:none;">
+                  <span class="score-label">Drops Collected</span>
+                  <span class="score-value" id="scoreDrops">0</span>
+                </div>
+                <div class="score-row">
+                  <span class="score-label">Distance</span>
+                  <span class="score-value" id="scoreDistance">6.00 km ✓</span>
+                </div>
+                <div class="score-row" id="scoreRowHighScore" style="display:none;">
+                  <span class="score-label">Best Distance</span>
+                  <span class="score-value" id="scoreBestDist">0.00 km</span>
+                </div>
+              </div>
+
+              <div class="score-buttons" id="scoreButtonsStory">
+                <button class="btn btn--primary" id="btnReplay">Play Again</button>
+                <button class="btn btn--secondary" id="btnInfinite" style="display:none;">Infinite Mode</button>
+              </div>
+
+              <div class="score-buttons" id="scoreButtonsInfinite" style="display:none;">
+                <button class="btn btn--primary btn--large" id="btnInfReplay">Play Again</button>
+                <button class="btn btn--outline" id="btnPlayOriginal">Play Original</button>
+              </div>
+
+              <div class="score-divider"></div>
+
+              <div class="score-cta">
+                <p class="score-cta-tagline">Clean water changes everything.</p>
+                <div class="score-cta-buttons">
+                  <a href="https://www.charitywater.org" target="_blank" rel="noopener" class="btn btn--outline btn--small">Learn More</a>
+                  <a href="https://www.charitywater.org/donate" target="_blank" rel="noopener" class="btn btn--outline btn--small">Donate</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SKIP BUTTON (replay only — shown during cutscene + endScreens) -->
+          <button class="skip-btn" id="btnSkip">Skip →</button>
+
+        </div><!-- /.canvas-holder -->
 
         <div class="info-strip">
           <div class="info-left">
@@ -78,8 +297,8 @@
             <span class="info-desc">Guide a jerry can 6 km to collect clean water</span>
           </div>
           <div class="info-controls">
-            <span class="key-hint"><kbd>W</kbd> / <kbd>&uarr;</kbd> Jump</span>
-            <span class="key-hint"><kbd>S</kbd> / <kbd>&darr;</kbd> Duck</span>
+            <span class="key-hint"><kbd>W</kbd> / <kbd>↑</kbd> Jump</span>
+            <span class="key-hint"><kbd>S</kbd> / <kbd>↓</kbd> Duck</span>
             <span class="key-hint"><kbd>P</kbd> Pause</span>
             <button class="fullscreen-btn" id="fullscreenBtn" aria-label="Toggle fullscreen">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -110,8 +329,7 @@
 
   </div>
 
-  <!-- Game Script (separate file) -->
-
+  <!-- Game Script -->
   <script src="scripts.js"></script>
 
 </body>

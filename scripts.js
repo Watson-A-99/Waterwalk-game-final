@@ -15,7 +15,6 @@
 var canvas = document.getElementById("game");
 var ctx    = canvas.getContext("2d");
 
-// Fixed internal resolution — CSS handles responsive scaling
 var W = 960;
 var H = 540;
 canvas.width  = W;
@@ -45,22 +44,22 @@ var PLAYER_W       = 50;
 var PLAYER_H       = 64;
 var DUCK_H         = 36;
 var JUMP_VELOCITY  = -10;
-var GRAVITY        = 0.65;
-var DUCK_DURATION  = 30;
-var START_WATER    = 20;
+var GRAVITY        = 0.55;
+var DUCK_DURATION  = 38;
+var START_WATER    = 15;
 var MAX_WATER      = 100;
 var DROP_VALUE     = 1;
 var WIN_WATER      = 80;
-var DAMAGE_ZONE_1  = 5;
-var DAMAGE_ZONE_2  = 10;
-var DAMAGE_ZONE_3  = 15;
-var TOTAL_TIME     = 90;
+var DAMAGE_ZONE_1  = 8;
+var DAMAGE_ZONE_2  = 14;
+var DAMAGE_ZONE_3  = 20;
+var TOTAL_TIME     = 1;
 var TOTAL_DISTANCE = 6;
-var BASE_SPEED     = 7;
-var MAX_SPEED      = 13;
-var INVULN_FRAMES  = 60;
+var BASE_SPEED     = 10;
+var MAX_SPEED      = 17.5;
+var INVULN_FRAMES  = 45;
 var DROP_W         = 22;
-var DROP_H         = 28;
+var DROP_H         = 30;   // adjusted for SVG aspect ratio (13:18)
 var ROCK_W         = 36;
 var ROCK_H         = 36;
 var CLUSTER_W      = 100;
@@ -107,29 +106,128 @@ var nextObstacleSpawn = 0;
 
 var hillOffset = 0;
 
+// ---- New overlay state ----
+var hasCompletedOnce  = false;   // true after first full playthrough reaches score
+var deathKm           = 0;       // km at time of death (for background)
+var endScreenTimeout  = null;    // auto-advance timer
+var currentAdvanceFn  = null;    // click-to-advance callback
+var totalDropsCollected = 0;     // raw count of drops grabbed
+var meterCountInterval  = null;  // for counting up meter number
+var hasSeenTutorial   = false;
+var hasSeenInfTutorial = false;
+var storyBestWater    = 0;       // best water % in story mode
+var infiniteBestDrops = 0;       // best drops in infinite
+
 // ---- Cutscene state ----
-// Phases: "decel" → "walkCenter" → "spriteSwap" → "panSun" → "whiteout" → done (→ "end")
 var cutscenePhase     = "";
 var cutsceneTimer     = 0;
-var cutsceneSpeedSnap = 0;    // scroll speed when cutscene began
-var cutscenePlayerStart = 0;  // player X when walk-to-center begins
-var cutsceneCamY      = 0;    // camera vertical offset (pan up)
-var cutsceneSunScale  = 1;    // sun radius multiplier
-var cutsceneRayAngle  = 0;    // rotating sun rays angle
-var cutsceneWhiteout  = 0;    // 0→1 alpha for final whiteout
+var cutsceneSpeedSnap = 0;
+var cutscenePlayerStart = 0;
+var cutsceneCamY      = 0;
+var cutsceneSunScale  = 1;
+var cutsceneRayAngle  = 0;
+var cutsceneWhiteout  = 0;
 
-// Back 3/4 sprite sizing (viewBox 548.78 × 869.04)
-var BACK34_ASPECT = 869.04 / 548.78;  // ≈ 1.583
-var SPRITE_BACK34_W = PLAYER_W;       // same width as standing
-var SPRITE_BACK34_H = Math.round(PLAYER_W * BACK34_ASPECT);  // ≈ 79
+var BACK34_ASPECT = 869.04 / 548.78;
+var SPRITE_BACK34_W = PLAYER_W;
+var SPRITE_BACK34_H = Math.round(PLAYER_W * BACK34_ASPECT);
 
-// Cutscene timing (frames at 60fps)
-var DECEL_FRAMES      = 90;   // 1.5s scroll deceleration
-var WALK_CENTER_SPEED = 2.5;  // px/frame walk speed to center
-var SPRITE_SWAP_PAUSE = 50;   // ~0.8s pause after swap
-var PAN_SUN_FRAMES    = 300;  // 5s camera pan + sun growth
-var WHITEOUT_FRAMES   = 80;   // ~1.3s final white fade
-var POST_WHITE_PAUSE  = 60;   // 1s hold on white before end screen
+var DECEL_FRAMES      = 90;
+var WALK_CENTER_SPEED = 2.5;
+var SPRITE_SWAP_PAUSE = 50;
+var PAN_SUN_FRAMES    = 200;
+var WHITEOUT_FRAMES   = 5;
+var POST_WHITE_PAUSE  = 15;   // quick hold then straight to end screens
+
+
+// ============================================================
+// [LOCAL STORAGE]
+// ============================================================
+function saveState() {
+  try {
+    localStorage.setItem("ww_infiniteUnlocked", infiniteUnlocked ? "1" : "0");
+    localStorage.setItem("ww_infiniteHighScore", infiniteHighScore.toFixed(2));
+    localStorage.setItem("ww_storyBestWater", storyBestWater.toString());
+    localStorage.setItem("ww_infiniteBestDrops", infiniteBestDrops.toString());
+    localStorage.setItem("ww_hasSeenTutorial", hasSeenTutorial ? "1" : "0");
+    localStorage.setItem("ww_hasSeenInfTutorial", hasSeenInfTutorial ? "1" : "0");
+    localStorage.setItem("ww_hasCompletedOnce", hasCompletedOnce ? "1" : "0");
+  } catch(e) {}
+}
+
+function loadState() {
+  try {
+    infiniteUnlocked = localStorage.getItem("ww_infiniteUnlocked") === "1";
+    infiniteHighScore = parseFloat(localStorage.getItem("ww_infiniteHighScore")) || 0;
+    storyBestWater = parseInt(localStorage.getItem("ww_storyBestWater")) || 0;
+    infiniteBestDrops = parseInt(localStorage.getItem("ww_infiniteBestDrops")) || 0;
+    hasSeenTutorial = localStorage.getItem("ww_hasSeenTutorial") === "1";
+    hasSeenInfTutorial = localStorage.getItem("ww_hasSeenInfTutorial") === "1";
+    hasCompletedOnce = localStorage.getItem("ww_hasCompletedOnce") === "1";
+  } catch(e) {}
+}
+
+// Dev helper: call resetSaveData() in console to clear all saved state
+function resetSaveData() {
+  try {
+    var keys = ["ww_infiniteUnlocked","ww_infiniteHighScore","ww_storyBestWater",
+                "ww_infiniteBestDrops","ww_hasSeenTutorial","ww_hasSeenInfTutorial","ww_hasCompletedOnce"];
+    for (var i = 0; i < keys.length; i++) localStorage.removeItem(keys[i]);
+    infiniteUnlocked = false; infiniteHighScore = 0; storyBestWater = 0;
+    infiniteBestDrops = 0; hasSeenTutorial = false; hasSeenInfTutorial = false; hasCompletedOnce = false;
+    console.log("Water Walk: save data cleared. Refresh the page.");
+  } catch(e) {}
+}
+
+loadState();
+
+
+// ============================================================
+// [OVERLAY MANAGEMENT]
+// ============================================================
+var overlayIds = [
+  "overlayStart", "overlayPause", "overlayDeath", "overlayTutorial", "overlayInfTutorial",
+  "overlayArrival", "overlayFact1", "overlayFact2", "overlayHope",
+  "overlayCTA", "overlayScore"
+];
+
+function hideAllOverlays() {
+  for (var i = 0; i < overlayIds.length; i++) {
+    var el = document.getElementById(overlayIds[i]);
+    if (el) el.classList.remove("active");
+  }
+  // Clear any pending auto-advance
+  if (endScreenTimeout) {
+    clearTimeout(endScreenTimeout);
+    endScreenTimeout = null;
+  }
+  if (meterCountInterval) {
+    clearInterval(meterCountInterval);
+    meterCountInterval = null;
+  }
+  currentAdvanceFn = null;
+}
+
+function showOverlay(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.add("active");
+}
+
+function showSkipButton(onDark) {
+  var btn = document.getElementById("btnSkip");
+  if (btn && hasCompletedOnce) {
+    btn.classList.add("visible");
+    btn.classList.toggle("on-dark", !!onDark);
+  }
+}
+
+function hideSkipButton() {
+  var btn = document.getElementById("btnSkip");
+  if (btn) {
+    btn.classList.remove("visible");
+    btn.classList.remove("on-dark");
+  }
+}
 
 
 // ============================================================
@@ -140,6 +238,11 @@ var keys = {};
 function togglePause() {
   if (state === "playing" || state === "infinite") {
     paused = !paused;
+    if (paused) {
+      showOverlay("overlayPause");
+    } else {
+      document.getElementById("overlayPause").classList.remove("active");
+    }
   }
 }
 
@@ -149,12 +252,32 @@ document.addEventListener("keydown", function(e) {
     togglePause();
     return;
   }
+  // Start game
   if (state === "start" && (e.key === " " || e.key === "Enter")) {
     startCountdown();
   }
-  if (state === "end") {
-    if (e.key === "r" || e.key === "R") resetAndPlay();
-    if ((e.key === "i" || e.key === "I") && infiniteUnlocked) startInfinite();
+  // Death screen
+  if (state === "death") {
+    if (e.key === "r" || e.key === "R" || e.key === " " || e.key === "Enter") {
+      resetAndPlay();
+    }
+  }
+  // Score screen
+  if (state === "score") {
+    if (e.key === "r" || e.key === "R") {
+      if (infiniteMode) startInfinite();
+      else resetAndPlay();
+    }
+    if ((e.key === "i" || e.key === "I") && infiniteUnlocked && !infiniteMode) startInfinite();
+  }
+  // Advance end screens on space/enter
+  if (state === "endScreens" && (e.key === " " || e.key === "Enter")) {
+    if (currentAdvanceFn) {
+      var fn = currentAdvanceFn;
+      currentAdvanceFn = null;
+      if (endScreenTimeout) { clearTimeout(endScreenTimeout); endScreenTimeout = null; }
+      fn();
+    }
   }
 });
 
@@ -177,18 +300,11 @@ canvas.addEventListener("touchstart", function(e) {
   var tx = (e.touches[0].clientX - rect.left) * scaleX;
   var ty = (e.touches[0].clientY - rect.top) * scaleY;
 
-  if (tx > PAUSE_BTN_X && tx < PAUSE_BTN_X + PAUSE_BTN_SIZE &&
+  if ((state === "playing" || state === "infinite") && !paused &&
+      tx > PAUSE_BTN_X && tx < PAUSE_BTN_X + PAUSE_BTN_SIZE &&
       ty > PAUSE_BTN_Y && ty < PAUSE_BTN_Y + PAUSE_BTN_SIZE) {
     togglePause();
     return;
-  }
-
-  if (state === "start") startCountdown();
-
-  if (paused) {
-    if (tx > W/2 - 100 && tx < W/2 + 100 && ty > H/2 + 20 && ty < H/2 + 70) {
-      paused = false;
-    }
   }
 }, { passive: false });
 
@@ -203,7 +319,7 @@ canvas.addEventListener("touchend", function(e) {
   }
 }, { passive: false });
 
-// Mouse click on buttons
+// Canvas click (only for pause button and pause resume during gameplay)
 canvas.addEventListener("click", function(e) {
   var rect = canvas.getBoundingClientRect();
   var scaleX = W / rect.width;
@@ -211,34 +327,83 @@ canvas.addEventListener("click", function(e) {
   var mx = (e.clientX - rect.left) * scaleX;
   var my = (e.clientY - rect.top) * scaleY;
 
-  if ((state === "playing" || state === "infinite") &&
+  if ((state === "playing" || state === "infinite") && !paused &&
       mx > PAUSE_BTN_X && mx < PAUSE_BTN_X + PAUSE_BTN_SIZE &&
       my > PAUSE_BTN_Y && my < PAUSE_BTN_Y + PAUSE_BTN_SIZE) {
     togglePause();
     return;
   }
+});
 
-  if (paused && mx > W/2 - 100 && mx < W/2 + 100 &&
-      my > H/2 + 20 && my < H/2 + 70) {
-    paused = false;
-    return;
-  }
+// --- HTML button handlers ---
+document.getElementById("btnStart").addEventListener("click", function() {
+  if (state === "start") startCountdown();
+});
 
-  if (state === "start") {
-    if (mx > W/2 - 100 && mx < W/2 + 100 && my > 340 && my < 390) {
-      startCountdown();
-    }
-  }
+document.getElementById("btnResume").addEventListener("click", function() {
+  if (paused) togglePause();
+});
 
-  if (state === "end") {
-    if (mx > W/2 - 200 && mx < W/2 - 10 && my > 400 && my < 450) {
-      resetAndPlay();
-    }
-    if (infiniteUnlocked && mx > W/2 + 10 && mx < W/2 + 200 && my > 400 && my < 450) {
-      startInfinite();
-    }
+document.getElementById("btnTryAgain").addEventListener("click", function() {
+  if (state === "death") resetAndPlay();
+});
+
+document.getElementById("btnContinue").addEventListener("click", function() {
+  if (state === "endScreens") {
+    transitionToScore();
   }
 });
+
+document.getElementById("btnReplay").addEventListener("click", function() {
+  if (state === "score") resetAndPlay();
+});
+
+document.getElementById("btnInfinite").addEventListener("click", function() {
+  if (state === "score" && infiniteUnlocked) startInfinite();
+});
+
+document.getElementById("btnInfReplay").addEventListener("click", function() {
+  if (state === "score") startInfinite();
+});
+
+document.getElementById("btnPlayOriginal").addEventListener("click", function() {
+  if (state === "score") resetAndPlay();
+});
+
+document.getElementById("btnSkip").addEventListener("click", function() {
+  if (state === "cutscene" || state === "endScreens") {
+    transitionToScore();
+  }
+});
+
+document.getElementById("btnTutorialGo").addEventListener("click", function() {
+  hideAllOverlays();
+  hasSeenTutorial = true;
+  saveState();
+  beginCountdown();
+});
+
+document.getElementById("btnInfTutorialGo").addEventListener("click", function() {
+  hideAllOverlays();
+  hasSeenInfTutorial = true;
+  saveState();
+  beginInfCountdown();
+});
+
+// Click-to-advance on overlay screens with data-advance
+document.querySelectorAll(".game-overlay[data-advance]").forEach(function(el) {
+  el.addEventListener("click", function(e) {
+    // Don't advance if they clicked a button inside the overlay
+    if (e.target.closest("button, a")) return;
+    if (state === "endScreens" && currentAdvanceFn) {
+      var fn = currentAdvanceFn;
+      currentAdvanceFn = null;
+      if (endScreenTimeout) { clearTimeout(endScreenTimeout); endScreenTimeout = null; }
+      fn();
+    }
+  });
+});
+
 
 function tryJump() {
   if (!paused && player.onGround && !player.ducking) {
@@ -250,7 +415,10 @@ function tryJump() {
 function tryDuck() {
   if (!paused && player.onGround && !player.ducking) {
     player.ducking = true;
-    player.duckTimer = DUCK_DURATION;
+    // Dampened scaling: duck stays generous early, shortens gently at high speed
+    var rawRatio = scrollSpeed / BASE_SPEED;
+    var speedRatio = 1 + (rawRatio - 1) * 0.55;
+    player.duckTimer = Math.max(18, Math.round(DUCK_DURATION / speedRatio));
   }
 }
 
@@ -451,6 +619,29 @@ function drawGround(km) {
   ctx.stroke();
 }
 
+// Golden wash background for post-cutscene screens
+function drawGoldenWash() {
+  var sunX = W * 0.58;
+  var sunY = H * 0.35;
+
+  var grad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, Math.max(W, H) * 0.95);
+  grad.addColorStop(0, "rgb(255, 253, 245)");
+  grad.addColorStop(0.25, "rgb(255, 249, 232)");
+  grad.addColorStop(0.55, "rgb(252, 243, 218)");
+  grad.addColorStop(0.8, "rgb(245, 237, 212)");
+  grad.addColorStop(1, "rgb(238, 230, 205)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// Draw background for a given km (used for start and death screens)
+function drawBackground(km) {
+  drawSky(km);
+  drawSun(km);
+  drawHills(km);
+  drawGround(km);
+}
+
 
 // ============================================================
 // [SVG SPRITE SYSTEM]
@@ -515,6 +706,15 @@ var LOSE_ANIM_DURATION = 90;
 
 
 // ============================================================
+// [WATER DROP SVG]
+// ============================================================
+var dropSvgImage = new Image();
+dropSvgImage._loaded = false;
+dropSvgImage.onload = function() { dropSvgImage._loaded = true; };
+dropSvgImage.src = "data:image/svg+xml,%3csvg%20fill='none'%20height='18'%20viewBox='0%200%2013%2018'%20width='13'%20xmlns='http://www.w3.org/2000/svg'%20xmlns:xlink='http://www.w3.org/1999/xlink'%3e%3cclipPath%20id='a'%3e%3cpath%20d='m.043457.549805h12.62v16.9h-12.62z'/%3e%3c/clipPath%3e%3cg%20clip-path='url(%23a)'%3e%3cpath%20d='m6.70353%2016.94c-3.2.24-6.01-2.17-6.25-5.37-.24-3.19996%204.56-9.58996%204.76-9.86996l.31-.41.36.36c.24.24%205.94997%205.94%206.18997%209.03996.24%203.1-2.16997%206-5.36997%206.25z'%20fill='%23fff'/%3e%3cpath%20d='m5.91349%2016.8199c-2.79.21-5.229999-1.89-5.439999-4.68-.21-2.68996%203.959999-8.34996%204.139999-8.58996l.27-.36.32.31c.21.21%205.19001%205.18%205.39001%207.86996.21%202.79-1.89001%205.23-4.68001%205.44z'%20fill='%235493d3'/%3e%3cpath%20d='m6.79366%2016.9296c-3.2.24-5.999997-2.16-6.239997-5.36-.24-3.09003%204.539997-9.57003%204.749997-9.85003l.3-.41.36.36c.24.24%205.94004%205.93%206.18004%209.02003.24%203.09-2.16004%205.99-5.36004%206.24z'%20stroke='%231a1a1a'%20stroke-linecap='round'%20stroke-miterlimit='10'/%3e%3c/g%3e%3c/svg%3e";
+
+
+// ============================================================
 // [JERRY CAN CHARACTER]
 // ============================================================
 function drawJerryCan() {
@@ -563,7 +763,6 @@ function drawJerryCan() {
   if (img && img._loaded) {
     ctx.drawImage(img, drawX, drawY, drawW, drawH);
   } else {
-    // Fallback rectangle
     ctx.fillStyle = COLORS.yellow;
     var fbH = p.ducking ? DUCK_H : PLAYER_H;
     ctx.fillRect(p.x, p.y - fbH + PLAYER_DRAW_Y_OFFSET, PLAYER_W, fbH);
@@ -595,6 +794,7 @@ function startDyingAnimation(wasDucking) {
   state = "dying";
   dyingTimer = 0;
   dyingWasDucking = wasDucking;
+  deathKm = infiniteMode ? Math.min(elapsed * 0.3, 5) : distance;
 }
 
 function drawDyingAnimation() {
@@ -652,38 +852,46 @@ function drawDyingAnimation() {
   ctx.restore();
 
   if (dyingTimer >= LOSE_ANIM_DURATION) {
-    if (!endResult) endResult = "loss";
-    state = "end";
+    if (infiniteMode) {
+      // Infinite mode goes straight to score
+      state = "score";
+      showInfiniteScore();
+    } else {
+      state = "death";
+      showDeathScreen();
+    }
   }
 }
 
 
 // ============================================================
-// [WATER DROPS]
+// [WATER DROPS] — now using SVG image
 // ============================================================
 function drawDrop(drop) {
-  var x = drop.x + DROP_W / 2;
+  var x = drop.x;
   var bob = Math.sin(elapsed * 2.5 + drop.x * 0.02) * 3;
-  var y = drop.y + bob;
+  var y = drop.y + bob - DROP_H / 2;
 
-  ctx.fillStyle = COLORS.waterBlue;
-  ctx.beginPath();
-  ctx.moveTo(x, y - DROP_H / 2);
-  ctx.quadraticCurveTo(x + DROP_W / 2, y, x + DROP_W / 2, y + DROP_H / 4);
-  ctx.arc(x, y + DROP_H / 4, DROP_W / 2, 0, Math.PI, false);
-  ctx.quadraticCurveTo(x - DROP_W / 2, y, x, y - DROP_H / 2);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
-  ctx.beginPath();
-  ctx.arc(x - 3, y - 2, 3, 0, Math.PI * 2);
-  ctx.fill();
+  if (dropSvgImage._loaded) {
+    ctx.drawImage(dropSvgImage, x, y, DROP_W, DROP_H);
+  } else {
+    // Fallback: simple blue drop shape
+    var cx = x + DROP_W / 2;
+    var cy = y + DROP_H / 2;
+    ctx.fillStyle = COLORS.waterBlue;
+    ctx.beginPath();
+    ctx.moveTo(cx, y);
+    ctx.quadraticCurveTo(cx + DROP_W / 2, cy, cx + DROP_W / 2, cy + DROP_H / 6);
+    ctx.arc(cx, cy + DROP_H / 6, DROP_W / 2, 0, Math.PI, false);
+    ctx.quadraticCurveTo(cx - DROP_W / 2, cy, cx, y);
+    ctx.closePath();
+    ctx.fill();
+  }
 }
 
 function getDropBox(drop) {
   var bob = Math.sin(elapsed * 2.5 + drop.x * 0.02) * 3;
-  return { x: drop.x, y: drop.y + bob - DROP_H / 2, w: DROP_W, h: DROP_H };
+  return { x: drop.x + 2, y: drop.y + bob - DROP_H / 2 + 2, w: DROP_W - 4, h: DROP_H - 4 };
 }
 
 
@@ -833,11 +1041,26 @@ function spawnObstacle() {
 function updateSpawning() {
   frameCount++;
 
+  // Stop spawning obstacles at 5.8km so screen clears before cutscene
+  var pastObstacleCutoff = (!infiniteMode && distance >= 5.8);
+
+  // Use appropriate distance metric
+  var dist = infiniteMode ? infiniteDistance : distance;
+
   var dropInterval, obsInterval;
-  if (distance < 1)      { dropInterval = 50; obsInterval = 80; }
-  else if (distance < 2) { dropInterval = 45; obsInterval = 60; }
-  else if (distance < 4) { dropInterval = 40; obsInterval = 45; }
-  else                   { dropInterval = 35; obsInterval = 35; }
+  if (infiniteMode) {
+    // Infinite: drops stay consistent, obstacles tighten with distance
+    dropInterval = 45;
+    if (dist < 0.5)     obsInterval = 70;
+    else if (dist < 1)  obsInterval = 50;
+    else if (dist < 3)  obsInterval = 38;
+    else                obsInterval = 28;
+  } else {
+    if (dist < 1)      { dropInterval = 55; obsInterval = 65; }
+    else if (dist < 2) { dropInterval = 50; obsInterval = 48; }
+    else if (dist < 4) { dropInterval = 45; obsInterval = 35; }
+    else               { dropInterval = 40; obsInterval = 28; }
+  }
 
   nextDropSpawn--;
   nextObstacleSpawn--;
@@ -847,9 +1070,10 @@ function updateSpawning() {
     nextDropSpawn = dropInterval + Math.floor(Math.random() * 15);
   }
 
-  if (nextObstacleSpawn <= 0 && frameCount > 180) {
+  if (nextObstacleSpawn <= 0 && frameCount > 180 && !pastObstacleCutoff) {
     spawnObstacle();
-    nextObstacleSpawn = obsInterval + Math.floor(Math.random() * 15);
+    var minFrameGap = Math.max(obsInterval, Math.ceil(400 / scrollSpeed));
+    nextObstacleSpawn = minFrameGap + Math.floor(Math.random() * 12);
 
     if (Math.random() < 0.35) {
       var lastObs = obstacles[obstacles.length - 1];
@@ -926,18 +1150,46 @@ function updateAndDrawParticles() {
 // ============================================================
 // [HUD / UI]
 // ============================================================
+function drawRoundedRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
 function drawHUD() {
+  if (infiniteMode) {
+    drawHUD_Infinite();
+  } else {
+    drawHUD_Story();
+  }
+
+  drawPauseButton();
+}
+
+function drawHUD_Story() {
   var meterX = 50, meterY = 25, meterW = 200, meterH = 22;
 
-  // Water drop icon
-  ctx.fillStyle = COLORS.waterBlue;
-  ctx.beginPath();
-  ctx.moveTo(28, meterY - 6);
-  ctx.quadraticCurveTo(38, meterY + 8, 38, meterY + 12);
-  ctx.arc(28, meterY + 12, 10, 0, Math.PI, false);
-  ctx.quadraticCurveTo(18, meterY + 8, 28, meterY - 6);
-  ctx.closePath();
-  ctx.fill();
+  // Water drop SVG icon
+  if (dropSvgImage._loaded) {
+    ctx.drawImage(dropSvgImage, 18, meterY - 5, 20, 28);
+  } else {
+    ctx.fillStyle = COLORS.waterBlue;
+    ctx.beginPath();
+    ctx.moveTo(28, meterY - 6);
+    ctx.quadraticCurveTo(38, meterY + 8, 38, meterY + 12);
+    ctx.arc(28, meterY + 12, 10, 0, Math.PI, false);
+    ctx.quadraticCurveTo(18, meterY + 8, 28, meterY - 6);
+    ctx.closePath();
+    ctx.fill();
+  }
 
   // Meter background
   ctx.fillStyle = "rgba(255,255,255,0.25)";
@@ -965,22 +1217,56 @@ function drawHUD() {
   ctx.textAlign = "left";
   ctx.fillText("SCORE: " + Math.floor(water), 28, meterY + meterH + 22);
 
-  // Distance
-  ctx.fillStyle = COLORS.yellow;
+  // Distance — with background pill
   ctx.font = "bold 20px monospace";
+  var distText = "DISTANCE: " + distance.toFixed(2) + " km / " + TOTAL_DISTANCE + " km";
+  var distTextW = ctx.measureText(distText).width;
+  var distPillX = W - 70 - distTextW - 10;
+  var distPillY = 24;
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
+  drawRoundedRect(distPillX, distPillY, distTextW + 20, 28, 6);
+  ctx.fill();
+
+  ctx.fillStyle = COLORS.yellow;
   ctx.textAlign = "right";
-  var distText = distance.toFixed(2) + " km / " + TOTAL_DISTANCE + " km";
-  ctx.fillText("DISTANCE: " + distText, W - 70, 42);
+  ctx.fillText(distText, W - 70, 42);
+}
 
-  drawPauseButton();
+function drawHUD_Infinite() {
+  var iconY = 22;
 
-  // Controls hint (first 3 seconds)
-  if (frameCount < 180 && !infiniteMode) {
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.font = "16px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("W / \u2191  to JUMP    \u2022    S / \u2193  to DUCK    \u2022    P to PAUSE", W / 2, GROUND_Y - 20);
+  // Drop counter — background pill
+  var dropText = "" + totalDropsCollected;
+  ctx.font = "bold 18px monospace";
+  var dropTextW = ctx.measureText(dropText).width;
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
+  drawRoundedRect(12, iconY - 7, 28 + dropTextW + 14, 32, 6);
+  ctx.fill();
+
+  // Water drop SVG icon
+  if (dropSvgImage._loaded) {
+    ctx.drawImage(dropSvgImage, 18, iconY - 3, 18, 25);
   }
+
+  // Drops collected count
+  ctx.fillStyle = COLORS.waterBlue;
+  ctx.font = "bold 18px monospace";
+  ctx.textAlign = "left";
+  ctx.fillText(dropText, 42, iconY + 16);
+
+  // Distance — with background pill
+  ctx.font = "bold 20px monospace";
+  var distText = "DISTANCE: " + infiniteDistance.toFixed(2) + " km";
+  var distTextW = ctx.measureText(distText).width;
+  var distPillX = W - 70 - distTextW - 10;
+  var distPillY = 24;
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
+  drawRoundedRect(distPillX, distPillY, distTextW + 20, 28, 6);
+  ctx.fill();
+
+  ctx.fillStyle = COLORS.yellow;
+  ctx.textAlign = "right";
+  ctx.fillText(distText, W - 70, 42);
 }
 
 function drawPauseButton() {
@@ -995,65 +1281,16 @@ function drawPauseButton() {
 
 
 // ============================================================
-// [PAUSE SCREEN]
+// [PAUSE SCREEN] — now HTML overlay, see overlayPause
 // ============================================================
-function drawPauseOverlay() {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.fillStyle = COLORS.yellow;
-  ctx.font = "bold 56px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("PAUSED", W/2, H/2 - 30);
-
-  ctx.fillStyle = COLORS.white;
-  ctx.font = "20px sans-serif";
-  ctx.fillText("Press P, Escape, or click below to resume", W/2, H/2 + 10);
-
-  ctx.fillStyle = COLORS.yellow;
-  ctx.fillRect(W/2 - 90, H/2 + 30, 180, 44);
-  ctx.fillStyle = COLORS.darkBlue;
-  ctx.font = "bold 20px sans-serif";
-  ctx.fillText("RESUME", W/2, H/2 + 58);
-}
+// Canvas pause drawing removed — handled by togglePause() + HTML overlay
 
 
 // ============================================================
-// [SCREENS]
+// [COUNTDOWN] — still canvas-drawn (brief, no need for HTML)
 // ============================================================
-function drawStartScreen() {
-  drawSky(0); drawSun(0); drawHills(0); drawGround(0);
-
-  ctx.fillStyle = "rgba(0,0,0,0.5)";
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.fillStyle = COLORS.yellow;
-  ctx.font = "bold 64px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("WATER WALK", W/2, 160);
-
-  ctx.fillStyle = COLORS.white;
-  ctx.font = "18px sans-serif";
-  ctx.fillText("Guide a jerry can 6km to collect clean water.", W/2, 210);
-  ctx.fillText("A charity:water awareness game.", W/2, 235);
-
-  ctx.fillStyle = COLORS.waterBlue;
-  ctx.font = "bold 16px monospace";
-  ctx.fillText("W / \u2191 / Space  =  JUMP       S / \u2193  =  DUCK       P  =  PAUSE", W/2, 280);
-
-  ctx.fillStyle = COLORS.yellow;
-  ctx.fillRect(W/2 - 100, 340, 200, 50);
-  ctx.fillStyle = COLORS.darkBlue;
-  ctx.font = "bold 22px sans-serif";
-  ctx.fillText("START GAME", W/2, 372);
-
-  ctx.fillStyle = "rgba(255,255,255,0.4)";
-  ctx.font = "14px sans-serif";
-  ctx.fillText("Mobile: Swipe Up = Jump, Swipe Down = Duck", W/2, 420);
-}
-
 function drawCountdown() {
-  drawSky(0); drawSun(0); drawHills(0); drawGround(0);
+  drawBackground(0);
 
   ctx.fillStyle = COLORS.yellow;
   ctx.font = "bold 120px sans-serif";
@@ -1061,126 +1298,193 @@ function drawCountdown() {
   ctx.fillText(countdownNum, W/2, H/2 + 30);
 }
 
-function drawEndScreen() {
-  var km;
-  if (infiniteMode) km = 3;
-  else if (endResult === "loss") km = Math.min(distance, 4);
-  else km = 5;
 
-  drawSky(km); drawSun(km); drawHills(km); drawGround(km);
+// ============================================================
+// [DEATH SCREEN] — story mode only
+// ============================================================
+function showDeathScreen() {
+  hideAllOverlays();
+  showOverlay("overlayDeath");
+}
 
-  ctx.fillStyle = "rgba(0,0,0,0.55)";
-  ctx.fillRect(0, 0, W, H);
-  ctx.textAlign = "center";
 
-  if (infiniteMode) {
-    ctx.fillStyle = COLORS.yellow;
-    ctx.font = "bold 42px sans-serif";
-    ctx.fillText("INFINITE MODE", W/2, 100);
+// ============================================================
+// [INFINITE SCORE SCREEN]
+// ============================================================
+function showInfiniteScore() {
+  hideAllOverlays();
+  hideSkipButton();
 
-    ctx.fillStyle = COLORS.white;
-    ctx.font = "24px sans-serif";
-    ctx.fillText("Distance: " + infiniteDistance.toFixed(2) + " km", W/2, 160);
+  // Update high scores
+  infiniteHighScore = Math.max(infiniteHighScore, infiniteDistance);
+  infiniteBestDrops = Math.max(infiniteBestDrops, totalDropsCollected);
+  saveState();
 
-    ctx.fillStyle = COLORS.waterBlue;
-    ctx.font = "20px sans-serif";
-    ctx.fillText("High Score: " + infiniteHighScore.toFixed(2) + " km", W/2, 200);
+  // Configure score screen for infinite
+  document.getElementById("scoreTitle").textContent = "Thank you for playing!";
+  document.getElementById("scoreRowWater").style.display = "none";
+  document.getElementById("scoreRowMeter").style.display = "none";
+  document.getElementById("scoreRowDrops").style.display = "flex";
+  document.getElementById("scoreDrops").textContent = totalDropsCollected + (totalDropsCollected > infiniteBestDrops - totalDropsCollected ? "" : "");
+  document.getElementById("scoreDistance").textContent = infiniteDistance.toFixed(2) + " km";
+  document.getElementById("scoreRowHighScore").style.display = "flex";
+  document.getElementById("scoreBestDist").textContent = infiniteHighScore.toFixed(2) + " km";
 
-    ctx.fillStyle = COLORS.yellow;
-    ctx.fillRect(W/2 - 100, 400, 200, 50);
-    ctx.fillStyle = COLORS.darkBlue;
-    ctx.font = "bold 18px sans-serif";
-    ctx.fillText("PLAY AGAIN (R)", W/2, 432);
-    return;
-  }
+  // Show infinite buttons, hide story buttons
+  document.getElementById("scoreButtonsStory").style.display = "none";
+  document.getElementById("scoreButtonsInfinite").style.display = "flex";
 
-  if (endResult === "loss") {
-    ctx.fillStyle = "#ff6b6b";
-    ctx.font = "bold 42px sans-serif";
-    ctx.fillText("OUT OF WATER!", W/2, 90);
+  showOverlay("overlayScore");
+}
 
-    ctx.fillStyle = COLORS.white;
-    ctx.font = "20px sans-serif";
-    ctx.fillText("Distance traveled: " + distance.toFixed(2) + " km", W/2, 150);
-    ctx.fillText("Water collected: " + Math.floor(water), W/2, 180);
 
-    var loseImg = sprites["lose"];
-    if (loseImg && loseImg._loaded) {
-      var iconW = 140;
-      var iconH = Math.round(iconW * LOSE_ASPECT);
-      ctx.drawImage(loseImg, W/2 - iconW/2, 220, iconW, iconH);
+// ============================================================
+// [END SCREENS FLOW] — post-cutscene educational sequence
+// ============================================================
+function beginEndScreens() {
+  state = "endScreens";
+  hideAllOverlays();
+  hideSkipButton();
+
+  // Show skip for returning players
+  showSkipButton(false);
+
+  // Start with arrival screen
+  showScreen_Arrival();
+}
+
+function showScreen_Arrival() {
+  hideAllOverlays();
+  showOverlay("overlayArrival");
+  showSkipButton(false);
+
+  // Reset meter animation elements
+  var fill = document.getElementById("meterFill");
+  var label = document.getElementById("meterLabel");
+  fill.style.width = "0%";
+  fill.classList.remove("filling", "perfect");
+  label.textContent = "";
+  label.classList.remove("perfect-text");
+
+  // Animate meter after delay (matches CSS animation-delay on meter-wrap)
+  setTimeout(function() {
+    if (state !== "endScreens") return;
+    animateArrivalMeter();
+  }, 700);
+
+  // Auto-advance after 4.5 seconds
+  endScreenTimeout = setTimeout(function() { showScreen_Fact1(); }, 4500);
+  currentAdvanceFn = showScreen_Fact1;
+}
+
+function animateArrivalMeter() {
+  var fill = document.getElementById("meterFill");
+  var label = document.getElementById("meterLabel");
+  var pct = Math.min(Math.floor(water), 100);
+
+  fill.classList.add("filling");
+  fill.style.width = pct + "%";
+
+  // Count up number
+  var current = 0;
+  var step = Math.max(1, Math.floor(pct / 60)); // complete in ~1 second
+  if (meterCountInterval) clearInterval(meterCountInterval);
+
+  meterCountInterval = setInterval(function() {
+    current += step;
+    if (current >= pct) {
+      current = pct;
+      clearInterval(meterCountInterval);
+      meterCountInterval = null;
+
+      if (pct >= 100) {
+        label.textContent = "Every drop made it home";
+        label.classList.add("perfect-text");
+        fill.classList.add("perfect");
+      } else {
+        label.textContent = current + "%";
+      }
+    } else {
+      label.textContent = current + "%";
     }
-
-    ctx.fillStyle = COLORS.yellow;
-    ctx.fillRect(W/2 - 100, 400, 200, 50);
-    ctx.fillStyle = COLORS.darkBlue;
-    ctx.font = "bold 18px sans-serif";
-    ctx.fillText("PLAY AGAIN (R)", W/2, 432);
-
-  } else if (endResult === "partial") {
-    ctx.fillStyle = COLORS.yellow;
-    ctx.font = "bold 42px sans-serif";
-    ctx.fillText("6 KM COMPLETE!", W/2, 80);
-
-    ctx.fillStyle = COLORS.white;
-    ctx.font = "20px sans-serif";
-    ctx.fillText("You made it, but didn't collect enough water.", W/2, 125);
-    ctx.fillText("Distance: \u2713  6 km", W/2, 170);
-    ctx.fillStyle = "#ff6b6b";
-    ctx.fillText("Water Goal: \u2717  (" + Math.floor(water) + " / " + WIN_WATER + ")", W/2, 200);
-
-    drawEducationalFacts(240);
-    drawEndButtons();
-
-  } else if (endResult === "win") {
-    ctx.fillStyle = COLORS.yellow;
-    ctx.font = "bold 42px sans-serif";
-    ctx.fillText("MISSION COMPLETE!", W/2, 80);
-
-    ctx.fillStyle = COLORS.white;
-    ctx.font = "20px sans-serif";
-    ctx.fillText("Distance: \u2713  6 km", W/2, 135);
-    ctx.fillStyle = "#5ddb6d";
-    ctx.fillText("Water Goal: \u2713  (" + Math.floor(water) + " / " + WIN_WATER + ")", W/2, 165);
-
-    drawEducationalFacts(210);
-    drawEndButtons();
-  }
+  }, 18);
 }
 
-function drawEducationalFacts(startY) {
-  ctx.fillStyle = "rgba(255,255,255,0.15)";
-  ctx.fillRect(W/2 - 320, startY - 10, 640, 90);
+function showScreen_Fact1() {
+  hideAllOverlays();
+  showOverlay("overlayFact1");
+  showSkipButton(false);
 
-  ctx.fillStyle = COLORS.waterBlue;
-  ctx.font = "bold 15px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("DID YOU KNOW?", W/2, startY + 12);
-
-  ctx.fillStyle = COLORS.white;
-  ctx.font = "15px sans-serif";
-  ctx.fillText("1 in 10 people worldwide lack access to clean water.", W/2, startY + 38);
-  ctx.fillText("6km is the average distance women and girls walk each day for water.", W/2, startY + 60);
-
-  ctx.fillStyle = COLORS.yellow;
-  ctx.font = "bold 14px sans-serif";
-  ctx.fillText("Learn more: charitywater.org", W/2, startY + 85);
+  endScreenTimeout = setTimeout(function() { showScreen_Fact2(); }, 6000);
+  currentAdvanceFn = showScreen_Fact2;
 }
 
-function drawEndButtons() {
-  ctx.fillStyle = COLORS.yellow;
-  ctx.fillRect(W/2 - 200, 400, 185, 50);
-  ctx.fillStyle = COLORS.darkBlue;
-  ctx.font = "bold 16px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("PLAY AGAIN (R)", W/2 - 108, 432);
+function showScreen_Fact2() {
+  hideAllOverlays();
+  showOverlay("overlayFact2");
+  showSkipButton(false);
 
+  endScreenTimeout = setTimeout(function() { showScreen_Hope(); }, 7000);
+  currentAdvanceFn = showScreen_Hope;
+}
+
+function showScreen_Hope() {
+  hideAllOverlays();
+  showOverlay("overlayHope");
+  showSkipButton(false);
+
+  endScreenTimeout = setTimeout(function() { showScreen_CTA(); }, 6500);
+  currentAdvanceFn = showScreen_Hope; // clicking on hope advances to CTA
+  currentAdvanceFn = showScreen_CTA;
+}
+
+function showScreen_CTA() {
+  hideAllOverlays();
+  showOverlay("overlayCTA");
+  showSkipButton(false);
+  // No auto-advance — user must click Continue or Skip
+  currentAdvanceFn = null;
+}
+
+function transitionToScore() {
+  hideAllOverlays();
+  hideSkipButton();
+  state = "score";
+  hasCompletedOnce = true;
+
+  // Update best water score
+  storyBestWater = Math.max(storyBestWater, Math.min(Math.floor(water), 100));
+  saveState();
+
+  // Configure score screen for story mode
+  document.getElementById("scoreTitle").textContent = "Thank you for playing!";
+  document.getElementById("scoreRowWater").style.display = "flex";
+  document.getElementById("scoreRowMeter").style.display = "flex";
+  document.getElementById("scoreRowDrops").style.display = "none";
+  document.getElementById("scoreRowHighScore").style.display = "none";
+
+  document.getElementById("scoreWater").textContent = totalDropsCollected + " drops";
+  document.getElementById("scorePct").textContent = Math.min(Math.floor(water), 100) + "%";
+  document.getElementById("scoreDistance").textContent = "6.00 km ✓";
+
+  var scoreFill = document.getElementById("scoreMeterFill");
+  scoreFill.style.width = "0%";
+
+  // Show story buttons, hide infinite buttons
+  document.getElementById("scoreButtonsStory").style.display = "flex";
+  document.getElementById("scoreButtonsInfinite").style.display = "none";
+
+  var infBtn = document.getElementById("btnInfinite");
   if (infiniteUnlocked) {
-    ctx.fillStyle = COLORS.blue;
-    ctx.fillRect(W/2 + 15, 400, 185, 50);
-    ctx.fillStyle = COLORS.white;
-    ctx.fillText("INFINITE MODE (I)", W/2 + 108, 432);
+    infBtn.style.display = "inline-flex";
   }
+
+  showOverlay("overlayScore");
+
+  // Animate score meter after short delay
+  setTimeout(function() {
+    scoreFill.style.width = Math.min(Math.floor(water), 100) + "%";
+  }, 300);
 }
 
 
@@ -1209,6 +1513,9 @@ function resetGame() {
   walkFrameTimer = 0;
   dyingTimer = 0;
   endResult = "";
+  totalDropsCollected = 0;
+  deathKm = 0;
+
   // Cutscene resets
   cutscenePhase = "";
   cutsceneTimer = 0;
@@ -1218,14 +1525,31 @@ function resetGame() {
   cutsceneSunScale = 1;
   cutsceneRayAngle = 0;
   cutsceneWhiteout = 0;
+
+  // Clear any pending timers
+  if (endScreenTimeout) { clearTimeout(endScreenTimeout); endScreenTimeout = null; }
+  if (meterCountInterval) { clearInterval(meterCountInterval); meterCountInterval = null; }
+  currentAdvanceFn = null;
 }
 
 function startCountdown() {
   resetGame();
+  hideAllOverlays();
+  hideSkipButton();
+  infiniteMode = false;
+
+  if (!hasSeenTutorial) {
+    state = "tutorial";
+    showOverlay("overlayTutorial");
+  } else {
+    beginCountdown();
+  }
+}
+
+function beginCountdown() {
   state = "countdown";
   countdownNum = 3;
   countdownTimer = 0;
-  infiniteMode = false;
 }
 
 function resetAndPlay() {
@@ -1234,10 +1558,22 @@ function resetAndPlay() {
 
 function startInfinite() {
   resetGame();
+  hideAllOverlays();
+  hideSkipButton();
+  infiniteMode = true;
+
+  if (!hasSeenInfTutorial) {
+    state = "tutorial";
+    showOverlay("overlayInfTutorial");
+  } else {
+    beginInfCountdown();
+  }
+}
+
+function beginInfCountdown() {
   state = "countdown";
   countdownNum = 3;
   countdownTimer = 0;
-  infiniteMode = true;
 }
 
 function update() {
@@ -1276,14 +1612,21 @@ function update() {
     elapsed += 1 / 60;
     distance = progress * TOTAL_DISTANCE;
   } else {
-    scrollSpeed = BASE_SPEED + elapsed * 0.06;
+    // Infinite: speed ramps up continuously, accelerating
+    scrollSpeed = BASE_SPEED + elapsed * 0.1 + elapsed * elapsed * 0.002;
     elapsed += 1 / 60;
-    infiniteDistance = elapsed * (scrollSpeed / 60);
+    infiniteDistance += scrollSpeed / 3600;  // pixels to km approximation
   }
 
   // Player physics
+  // Dampened speed ratio: at base speed = 1.0, at max speed (~2x) ≈ 1.5
+  // This prevents floatiness at high speed without making early game too snappy
+  var rawRatio = scrollSpeed / BASE_SPEED;
+  var speedRatio = 1 + (rawRatio - 1) * 0.55;
+  var effectiveGravity = GRAVITY * speedRatio;
+
   if (!player.onGround) {
-    player.vy += GRAVITY;
+    player.vy += effectiveGravity;
     player.y += player.vy;
     if (player.y >= GROUND_Y) {
       player.y = GROUND_Y;
@@ -1326,17 +1669,7 @@ function update() {
     var dBox = getDropBox(drops[i]);
     if (boxOverlap(pBox, dBox)) {
       water = Math.min(water + DROP_VALUE, MAX_WATER);
-      ctx.save();
-      var gx = drops[i].x + DROP_W/2;
-      var gy = drops[i].y;
-      var glowGrad = ctx.createRadialGradient(gx, gy, 0, gx, gy, 28);
-      glowGrad.addColorStop(0, "rgba(77, 184, 232, 0.5)");
-      glowGrad.addColorStop(1, "rgba(77, 184, 232, 0)");
-      ctx.fillStyle = glowGrad;
-      ctx.beginPath();
-      ctx.arc(gx, gy, 28, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      totalDropsCollected++;
       drops.splice(i, 1);
     }
   }
@@ -1354,8 +1687,8 @@ function update() {
         }
 
         var dmg = DAMAGE_ZONE_1;
-        if (distance >= 4) dmg = DAMAGE_ZONE_3;
-        else if (distance >= 2) dmg = DAMAGE_ZONE_2;
+        if (distance >= 3.5) dmg = DAMAGE_ZONE_3;
+        else if (distance >= 1.5) dmg = DAMAGE_ZONE_2;
 
         water -= dmg;
         player.invulnTimer = INVULN_FRAMES;
@@ -1364,6 +1697,7 @@ function update() {
 
         if (water <= 0 && distance >= 0.5) {
           water = 0;
+          endResult = "loss";
           startDyingAnimation(player.ducking);
           return;
         }
@@ -1373,11 +1707,10 @@ function update() {
     }
   }
 
-  // Win check — trigger cutscene instead of immediate end
+  // Win check — trigger cutscene
   if (!infiniteMode && distance >= TOTAL_DISTANCE) {
     infiniteUnlocked = true;
     endResult = water >= WIN_WATER ? "win" : "partial";
-    // Start cutscene — if mid-air, land first
     state = "cutscene";
     cutscenePhase = player.onGround ? "decel" : "landing";
     cutsceneTimer = 0;
@@ -1386,23 +1719,20 @@ function update() {
     cutsceneSunScale = 1;
     cutsceneRayAngle = 0;
     cutsceneWhiteout = 0;
-    // Force out of ducking
     player.ducking = false;
     player.duckTimer = 0;
+
+    // Show skip button for returning players during cutscene
+    showSkipButton(true);
   }
 }
 
-// ============================================================
-// [CUTSCENE SYSTEM] — end-of-game cinematic sequence
-// ============================================================
 
-// Easing: cubic ease-out (fast start, slow end)
+// ============================================================
+// [CUTSCENE SYSTEM]
+// ============================================================
 function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
-
-// Easing: cubic ease-in (slow start, fast end)
 function easeInCubic(t) { return t * t * t; }
-
-// Easing: ease-in-out cubic
 function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
@@ -1410,9 +1740,7 @@ function easeInOutCubic(t) {
 function updateCutscene() {
   cutsceneTimer++;
 
-  // Phase 0: LANDING — finish the jump arc before anything else
   if (cutscenePhase === "landing") {
-    // Continue gravity + downward motion
     player.vy += GRAVITY;
     player.y += player.vy;
 
@@ -1420,12 +1748,10 @@ function updateCutscene() {
       player.y = GROUND_Y;
       player.vy = 0;
       player.onGround = true;
-      // Now transition into decel
       cutscenePhase = "decel";
       cutsceneTimer = 0;
     }
 
-    // Keep scrolling and clearing during landing
     hillOffset += scrollSpeed;
     for (var i = drops.length - 1; i >= 0; i--) {
       drops[i].x -= scrollSpeed;
@@ -1439,15 +1765,12 @@ function updateCutscene() {
   }
 
   if (cutscenePhase === "decel") {
-    // Phase 1: Ease scroll speed to zero
     var t = Math.min(cutsceneTimer / DECEL_FRAMES, 1);
     var eased = easeOutCubic(t);
     scrollSpeed = cutsceneSpeedSnap * (1 - eased);
 
-    // Keep scrolling background during decel
     hillOffset += scrollSpeed;
 
-    // Still move remaining drops/obstacles off screen
     for (var i = drops.length - 1; i >= 0; i--) {
       drops[i].x -= scrollSpeed;
       if (drops[i].x < -50) drops.splice(i, 1);
@@ -1457,7 +1780,6 @@ function updateCutscene() {
       if (obstacles[i].x < -100) obstacles.splice(i, 1);
     }
 
-    // Walk animation continues
     updateWalkCycle();
 
     if (t >= 1) {
@@ -1469,7 +1791,6 @@ function updateCutscene() {
   }
 
   else if (cutscenePhase === "walkCenter") {
-    // Phase 2: Walk the character to screen center
     var targetX = W / 2 - PLAYER_W / 2;
     var dx = targetX - player.x;
 
@@ -1484,7 +1805,6 @@ function updateCutscene() {
   }
 
   else if (cutscenePhase === "spriteSwap") {
-    // Phase 3: Brief pause showing back 3/4 sprite
     if (cutsceneTimer >= SPRITE_SWAP_PAUSE) {
       cutscenePhase = "panSun";
       cutsceneTimer = 0;
@@ -1492,17 +1812,12 @@ function updateCutscene() {
   }
 
   else if (cutscenePhase === "panSun") {
-    // Phase 4: Camera pans up, sun rises and grows with rays
     var t = Math.min(cutsceneTimer / PAN_SUN_FRAMES, 1);
     var eased = easeInOutCubic(t);
 
-    // Camera pans up (increasing offset moves scene downward → reveals sky)
     cutsceneCamY = eased * 450;
-
-    // Sun grows: starts at 1x, ends at ~12x radius
     cutsceneSunScale = 1 + eased * 11;
 
-    // Ray rotation — starts slow, speeds up
     var rotSpeed = 0.003 + eased * 0.02;
     cutsceneRayAngle += rotSpeed;
 
@@ -1513,11 +1828,9 @@ function updateCutscene() {
   }
 
   else if (cutscenePhase === "whiteout") {
-    // Phase 5: Radial white-out consumes the screen
     var t = Math.min(cutsceneTimer / WHITEOUT_FRAMES, 1);
     cutsceneWhiteout = easeInCubic(t);
 
-    // Keep rays rotating during whiteout
     cutsceneRayAngle += 0.023;
 
     if (t >= 1) {
@@ -1527,18 +1840,17 @@ function updateCutscene() {
   }
 
   else if (cutscenePhase === "postWhite") {
-    // Phase 6: Hold on the gradient, then transition to end screen
     if (cutsceneTimer >= POST_WHITE_PAUSE) {
-      state = "end";
+      // Transition to end screens
+      beginEndScreens();
     }
   }
 }
 
 
 function drawCutscene() {
-  var km = 6;  // fully sunrise palette
+  var km = 6;
 
-  // ======== LAYER 1: Sky (screen space — always fills full canvas) ========
   var skyTop = blendPalette(skyTopPalette, km);
   var skyBot = blendPalette(skyBotPalette, km);
   var skyGrad = ctx.createLinearGradient(0, 0, 0, H);
@@ -1547,17 +1859,14 @@ function drawCutscene() {
   ctx.fillStyle = skyGrad;
   ctx.fillRect(0, 0, W, H);
 
-  // ======== LAYER 2: Sun (screen space — rises independently) ========
   drawCutsceneSun(km);
 
-  // ======== LAYER 3: Hills, ground, character (camera space — slide down) ========
   ctx.save();
-  ctx.translate(0, cutsceneCamY);  // positive = push content down = camera pans up
+  ctx.translate(0, cutsceneCamY);
 
   drawHills(km);
   drawGround(km);
 
-  // Character
   if (cutscenePhase === "landing" || cutscenePhase === "decel" || cutscenePhase === "walkCenter") {
     drawJerryCan();
   } else if (cutscenePhase === "spriteSwap" || cutscenePhase === "panSun") {
@@ -1566,7 +1875,6 @@ function drawCutscene() {
 
   ctx.restore();
 
-  // ======== LAYER 4: HUD fade (screen space) ========
   var hudAlpha = 1;
   if (cutscenePhase === "landing") {
     hudAlpha = 1;
@@ -1581,23 +1889,21 @@ function drawCutscene() {
     ctx.globalAlpha = 1;
   }
 
-  // ======== LAYER 5: Whiteout (screen space — radial from sun center) ========
   if (cutsceneWhiteout > 0 || cutscenePhase === "postWhite") {
     var alpha = cutscenePhase === "postWhite" ? 1 : cutsceneWhiteout;
 
-    // Sun screen position (matches drawCutsceneSun's screen coords)
     var sunScreenX = W * 0.58;
     var sunBaseY = lerpKeyframes(sunPositions, km, "y");
     var sunTargetY = H * 0.32;
-    var sunScreenY = lerp(sunBaseY, sunTargetY, 1);  // sun is at final position during whiteout
+    var sunScreenY = lerp(sunBaseY, sunTargetY, 1);
 
     var whiteGrad = ctx.createRadialGradient(
       sunScreenX, sunScreenY, 0,
       sunScreenX, sunScreenY, Math.max(W, H) * 1.2
     );
     whiteGrad.addColorStop(0, "rgba(255, 255, 255, " + alpha + ")");
-    whiteGrad.addColorStop(0.6, "rgba(240, 251, 255, " + alpha + ")");
-    whiteGrad.addColorStop(1, "rgba(225, 247, 255, " + alpha + ")");
+    whiteGrad.addColorStop(0.6, "rgba(255, 252, 245, " + alpha + ")");
+    whiteGrad.addColorStop(1, "rgba(248, 243, 230, " + alpha + ")");
 
     ctx.fillStyle = whiteGrad;
     ctx.fillRect(0, 0, W, H);
@@ -1607,12 +1913,10 @@ function drawCutscene() {
 
 function drawCutsceneSun(km) {
   var sunX = W * 0.58;
-  var sunBaseY = lerpKeyframes(sunPositions, km, "y");  // world Y at km=6 ≈ 240
-  var baseRadius = lerpKeyframes(sunPositions, km, "r"); // ≈ 85
+  var sunBaseY = lerpKeyframes(sunPositions, km, "y");
+  var baseRadius = lerpKeyframes(sunPositions, km, "r");
 
-  // Sun rises in SCREEN SPACE: starts at its world position, moves toward screen center
-  // During panSun phase, interpolate from base position to a higher screen position
-  var sunTargetY = H * 0.32;  // target: upper-center of screen
+  var sunTargetY = H * 0.32;
   var riseT = 0;
   if (cutscenePhase === "panSun") {
     riseT = easeInOutCubic(Math.min(cutsceneTimer / PAN_SUN_FRAMES, 1));
@@ -1627,31 +1931,26 @@ function drawCutsceneSun(km) {
   var ringCol = blendPalette(sunRingPalette, km);
   var centerCol = blendPalette(sunCenterPalette, km);
 
-  // ---- Soft glow (scales with sun) ----
   var glow = ctx.createRadialGradient(sunX, sunY, radius * 0.3, sunX, sunY, radius * 2.5);
   glow.addColorStop(0, rgba(col, 0.35));
   glow.addColorStop(1, rgba(col, 0));
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, W, H);
 
-  // ---- Radiating sun rays ----
   if (cutsceneSunScale > 1.2) {
     drawSunRays(sunX, sunY, radius);
   }
 
-  // ---- Outer ring ----
   ctx.beginPath();
   ctx.arc(sunX, sunY, radius + 14 * Math.min(cutsceneSunScale, 4), 0, Math.PI * 2);
   ctx.fillStyle = rgba(ringCol, 0.65);
   ctx.fill();
 
-  // ---- Main disc ----
   ctx.beginPath();
   ctx.arc(sunX, sunY, radius, 0, Math.PI * 2);
   ctx.fillStyle = rgb(col);
   ctx.fill();
 
-  // ---- Bright center ----
   var inner = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, radius * 0.7);
   inner.addColorStop(0, rgba(centerCol, 0.7));
   inner.addColorStop(1, rgba(col, 0));
@@ -1665,9 +1964,8 @@ function drawCutsceneSun(km) {
 function drawSunRays(cx, cy, radius) {
   var numRays = 12;
   var rayLength = radius * 2.5;
-  var rayWidth = 0.09;  // radians — thick rays
+  var rayWidth = 0.09;
 
-  // Rays fade in as sun grows
   var fadeIn = clamp((cutsceneSunScale - 1.2) / 2, 0, 1);
   var alpha = fadeIn * 0.45;
 
@@ -1681,16 +1979,14 @@ function drawSunRays(cx, cy, radius) {
     ctx.save();
     ctx.rotate(angle);
 
-    // Each ray is a tapered triangle from disc edge outward
     ctx.beginPath();
     ctx.moveTo(radius * 0.7, -Math.tan(rayWidth) * radius * 0.7);
     ctx.lineTo(radius + rayLength, 0);
     ctx.lineTo(radius * 0.7, Math.tan(rayWidth) * radius * 0.7);
     ctx.closePath();
 
-    // Gradient along the ray: solid near sun, fades outward
     var rayGrad = ctx.createLinearGradient(radius * 0.7, 0, radius + rayLength, 0);
-    rayGrad.addColorStop(0, "rgba(255, 203, 61, " + alpha + ")");        // brand yellow
+    rayGrad.addColorStop(0, "rgba(255, 203, 61, " + alpha + ")");
     rayGrad.addColorStop(0.4, "rgba(255, 215, 90, " + (alpha * 0.7) + ")");
     rayGrad.addColorStop(1, "rgba(255, 235, 170, 0)");
 
@@ -1714,7 +2010,6 @@ function drawBack34Sprite() {
   if (img && img._loaded) {
     ctx.drawImage(img, drawX, drawY, drawW, drawH);
   } else {
-    // Fallback yellow rectangle
     ctx.fillStyle = COLORS.yellow;
     ctx.fillRect(player.x, player.y - PLAYER_H + PLAYER_DRAW_Y_OFFSET, PLAYER_W, PLAYER_H);
     ctx.strokeStyle = "#d4a830";
@@ -1724,15 +2019,62 @@ function drawBack34Sprite() {
 }
 
 
+// ============================================================
+// [DRAW FUNCTION]
+// ============================================================
 function draw() {
   ctx.clearRect(0, 0, W, H);
 
-  if (state === "start")     { drawStartScreen(); return; }
-  if (state === "countdown") { drawCountdown(); return; }
-  if (state === "cutscene")  { drawCutscene(); return; }
-  if (state === "end")       { drawEndScreen(); return; }
+  // --- Screens that only need a canvas background (HTML overlays handle content) ---
 
-  // Gameplay draw
+  if (state === "start" || state === "tutorial") {
+    drawBackground(0);
+    return;
+  }
+
+  if (state === "countdown") {
+    drawCountdown();
+    return;
+  }
+
+  if (state === "cutscene") {
+    drawCutscene();
+    return;
+  }
+
+  if (state === "death") {
+    drawBackground(deathKm);
+    return;
+  }
+
+  if (state === "endScreens") {
+    drawGoldenWash();
+    return;
+  }
+
+  if (state === "score") {
+    drawGoldenWash();
+    return;
+  }
+
+  // --- Active gameplay ---
+  if (state === "dying") {
+    var km = infiniteMode ? Math.min(elapsed * 0.3, 5) : distance;
+    drawSky(km);
+    drawSun(km);
+    drawHills(km);
+    drawGround(km);
+
+    for (var i = 0; i < drops.length; i++) drawDrop(drops[i]);
+    for (var i = 0; i < obstacles.length; i++) drawObstacle(obstacles[i]);
+
+    drawJerryCan();
+    updateAndDrawParticles();
+    drawHUD();
+    return;
+  }
+
+  // Playing / Infinite
   var km = infiniteMode ? Math.min(elapsed * 0.3, 5) : distance;
 
   drawSky(km);
@@ -1745,7 +2087,7 @@ function draw() {
 
   drawJerryCan();
 
-  if (!paused || state === "dying") updateAndDrawParticles();
+  if (!paused) updateAndDrawParticles();
 
   drawHUD();
 
@@ -1757,7 +2099,7 @@ function draw() {
     ctx.fillRect(0, 0, W, H);
   }
 
-  if (paused) drawPauseOverlay();
+  // Pause overlay is now HTML — no canvas drawing needed
 }
 
 
@@ -1776,7 +2118,6 @@ loadSprites(function() {
   startGameLoop();
 });
 
-// Fallback: start even if sprites fail after 2 seconds
 setTimeout(function() {
   if (!spritesLoaded) spritesLoaded = true;
   startGameLoop();
@@ -1811,8 +2152,6 @@ function gameLoop() {
 
 // ============================================================
 // [ORIENTATION OVERLAY DISMISS]
-// The overlay is shown/hidden entirely by CSS media queries.
-// JS only handles the "Play Anyway" dismiss button.
 // ============================================================
 (function() {
   var overlay = document.getElementById("orientationOverlay");
